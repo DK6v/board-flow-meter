@@ -24,8 +24,8 @@
  * D4   dallas sendors      boot fails if pulled LOW
  * D5   counter (cold)
  * D6   counter (hot)
- * D7          
- * D8                       fails if pulled HIGH          
+ * D7
+ * D8                       fails if pulled HIGH
  */
 
 app::PinLed redLed(PIN_D3);

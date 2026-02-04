@@ -13,7 +13,7 @@
 
 namespace app {
 
-class Reporter {   
+class Reporter {
 public:
     Reporter(const char* host, uint16_t port);
     Reporter(const std::string& host, uint16_t port);
