@@ -1,6 +1,9 @@
 #pragma once
 
 #include <list>
+#include <vector>
+#include <functional>
+#include <memory>
 
 #include <Arduino.h>
 
@@ -19,9 +22,24 @@ static const msec TIME_INVALID = (-1);
 class TimerListener {
 public:
     TimerListener() {};
-    ~TimerListener() = default;
+    virtual ~TimerListener() = default;
 
     virtual void onTimer() = 0;
+};
+
+class CallbackTimerListener : public TimerListener
+{
+public:
+    explicit CallbackTimerListener(std::function<void()> callback)
+        : mCallback(std::move(callback)) {}
+
+    void onTimer() override
+    {
+        mCallback();
+    }
+
+private:
+    std::function<void()> mCallback;
 };
 
 // --------------------------------------------------------
@@ -32,23 +50,25 @@ public:
     ~TimerDispatcher() = default;
 
     void process();
-    void startTimer(TimerListener& listener, msec interval, bool runOnce = false);
 
-    time_t getTimeNtp();
+    void startTimer(TimerListener *listener, msec interval, bool runOnce = false);
+    void startTimer(std::shared_ptr<TimerListener> listener, msec interval, bool runOnce = false);
 
-    void delay(msec delay);
+    void startTimer(std::function<void()> callback, msec interval, bool runOnce = false);
+
+    void clear();
+
+protected:
+    void startTimerImpl(std::shared_ptr<TimerListener> listener, msec interval, bool runOnce);
 
 private:
-
     struct Timer {
-        TimerListener& listener;
+        std::shared_ptr<TimerListener> listener;
         msec nextTime;
         msec interval;
     };
 
-    time_t mLastTimeNtp;
-    msec mLastTimeNtpMs;
-
+    msec mLastTimeMs;
     std::list<Timer> mTimers;
 };
 

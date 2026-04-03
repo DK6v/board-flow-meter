@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <algorithm>
 
 #include "TimerDispatcher.h"
 
@@ -6,80 +7,84 @@ namespace app {
 
 // --------------------------------------------------------
 
-TimerDispatcher::TimerDispatcher() :
-    mLastTimeNtp((time_t)-1),
-    mLastTimeNtpMs(millis()) {
+TimerDispatcher::TimerDispatcher()
+  : mLastTimeMs(millis())
+{}
+
+void TimerDispatcher::startTimer(TimerListener* listener, msec interval, bool runOnce)
+{
+    if (!listener) return;
+
+    // Set empty deleter for raw pointers
+    auto sharedListener = std::shared_ptr<TimerListener>(listener, [](TimerListener *) {});
+    startTimer(sharedListener, interval, runOnce);
 }
 
-void TimerDispatcher::startTimer(TimerListener& listener, msec interval, bool runOnce) {
+void TimerDispatcher::startTimer(std::shared_ptr<TimerListener> listener, msec interval, bool runOnce)
+{
+    if (!listener) return;
 
-    Timer timer = {
-        .listener = listener,
-        .nextTime = (millis() + interval),
-        .interval = (runOnce) ? TIME_INVALID : interval
-    };
+    Timer timer;
+    timer.listener = listener;
+    timer.nextTime = millis() + interval;
+    timer.interval = runOnce ? TIME_INVALID : interval;
+
     mTimers.push_back(timer);
 }
 
-void TimerDispatcher::process() {
+void TimerDispatcher::startTimer(std::function<void()> callback, msec interval, bool runOnce)
+{
+    if (!callback) return;
 
+    auto listener = std::make_shared<CallbackTimerListener>(std::move(callback));
+    startTimer(listener, interval, runOnce);
+}
+
+void TimerDispatcher::process()
+{
     msec currentTimeMs = millis();
 
-    for (auto it = mTimers.begin(); it != mTimers.end();) {
+    auto it = mTimers.begin();
+    while (it != mTimers.end())
+    {
+        if (currentTimeMs >= it->nextTime)
+        {
+            if (it->listener)
+            {
+                it->listener->onTimer();
+            }
 
-        if (currentTimeMs >= (*it).nextTime) {
-
-            (*it).listener.onTimer();
-
-            if ((*it).interval == TIME_INVALID) {
+            if (it->interval == TIME_INVALID)
+            {
                 it = mTimers.erase(it);
             }
-            else {
-                (*it).nextTime += (*it).interval;
+            else
+            {
+                it->nextTime += it->interval;
+
+                if (it->nextTime < currentTimeMs)
+                {
+                    it->nextTime = currentTimeMs + it->interval;
+                }
+
+                ++it;
             }
         }
-        else {
+        else
+        {
             ++it;
         }
     }
 
-    if (mLastTimeNtpMs + 60000 < currentTimeMs) {
-        
-        getTimeNtp();
-
-        mLastTimeNtpMs = currentTimeMs;
+    if (mLastTimeMs + 60000 < currentTimeMs)
+    {
+        mLastTimeMs = currentTimeMs;
     }
 }
 
-time_t TimerDispatcher::getTimeNtp() {
-    
-    time_t currentTimeNtp = time(&currentTimeNtp);
-#if 0
-    Serial.print("NtpClock: ");
-    Serial.println(currentTimeNtp);
-
-    if (mLastTimeNtp != 0) {
-        Serial.print("Duration: ");
-        Serial.println((unsigned long)((currentTimeNtp - mLastTimeNtp) * 0.97));
-    }
-    mLastTimeNtp = currentTimeNtp;
-
-    struct tm * timeinfo;
-    timeinfo = localtime(&currentTimeNtp);
-
-    Serial.println(timeinfo, "%A, %B %d %Y %H:%M:%S");
-
-    // if(!getLocalTime(&timeinfo)){
-    //     Serial.println("Failed to obtain time");
-    //     return;
-    // }
-    // Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
-#endif
-    return currentTimeNtp;
-}
-
-void TimerDispatcher::delay(msec delayMs) {
-    ::delay(delayMs);
+void TimerDispatcher::clear()
+{
+    mTimers.clear();
 }
 
 } // namespace app

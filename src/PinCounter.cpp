@@ -2,126 +2,103 @@
 
 #include "PinCounter.h"
 
+using namespace reporter;
+
 namespace app {
 
 PinCounter::PinCounter(uint8_t pin,
-                       NonVolitileCounter& counter,
-                       Reporter& reporter,
-                       const char* name,
+                       Reporter &reporter,
+                       const char *name,
                        const uint32_t multiplier = 1)
     : PinBase(pin),
       mName(name),
       mReporter(reporter),
       mBucket(0),
-      mTotal(counter),
-      mMultiplier(multiplier) {
-    
+      mCounterTotal(0),
+      mMultiplier(multiplier)
+{
     pinMode(pin, INPUT);
-
     mLastState = digitalRead(mPin);
     mLastCheckMs = millis();
 }
 
-void PinCounter::attach(VoidCallbackPtr callback) const {
+void PinCounter::attach(VoidCallbackPtr callback) const
+{
     pinMode(mPin, INPUT);
     attachInterrupt(mPin, callback, ONLOW);
 }
 
-void PinCounter::process() {
-    
+bool PinCounter::process() {
+
     pinMode(mPin, INPUT);
 
     msec currentTimeMs = millis();
 
     if (mLastCheckMs < (currentTimeMs - 1000)) {
 
+        mLastCheckMs = currentTimeMs;
+
         if ((mLastState == LOW) && (digitalRead(mPin) == HIGH)) {
 
             mLastState = HIGH;
 
             mBucket += mMultiplier;
-            mTotal += mMultiplier;
+            mCounterTotal += mMultiplier;
+
+            return true;
         }
         else if ((mLastState == HIGH) && (digitalRead(mPin) == LOW)) {
 
             mLastState = LOW;
         }
-
-        mLastCheckMs = currentTimeMs;
     }
-}
 
-uint32_t PinCounter::total() const {
-    return mTotal;
-}
-
-bool PinCounter::PinCounter::empty() const {
-    return (mBucket == 0);
-}
-
-void PinCounter::reset() {
-    mBucket = 0;
-}
-
-PinCounter::operator uint32_t() const {
-    return mBucket;
+    return false;
 }
 
 PinCounter& PinCounter::operator++() {
 
     mBucket += mMultiplier;
-    return *this;
-}
-
-PinCounter& PinCounter::operator--() {
-
-    if (mBucket >= mMultiplier) {
-        mBucket -= mMultiplier;
-    } else {
-        mBucket = 0;
-    }
+    mCounterTotal += mMultiplier;
 
     return *this;
 }
 
-void PinCounter::onInterrupt() {
-    
-    msec currentTimeMs = millis();
-    
-    if (mLastCheckMs < (currentTimeMs - 20)) {
-        mBucket += mMultiplier;
-        mTotal += mMultiplier;
-    }
-    mLastCheckMs = currentTimeMs;
+void PinCounter::onTimer()
+{
+    sendMetric();
 }
 
 void PinCounter::sendMetric() {
 
-    if (mBucket != 0) {
+    mReporter.clear();
+    mReporter.addTag("device_type", "water_meter");
+    mReporter.addTag("entity_id", std::string(mName));
+    mReporter.addTag("entity_type", "counter");
+    mReporter.addTag("entity_unit", "L");
+    mReporter.addField("value", mCounterTotal);
+    mReporter.send();
 
-        std::string metric = "water,sensor=" + std::string(mName)
-                           + " count=" + std::to_string(mBucket)
-                           + ",total=" + std::to_string(mTotal);
+    mReporter.clear();
+    mReporter.addTag("device_type", "water_meter");
+    mReporter.addTag("entity_id", std::string(mName));
+    mReporter.addTag("entity_type", "delta");
+    mReporter.addTag("entity_unit", "L");
+    mReporter.addField("value", mBucket);
+    mReporter.send();
 
-        if (0 != mReporter.send(metric)) {
-            mBucket = 0;
-        }
-    }
+    mBucket = 0;
 }
 
-void PinCounter::onTimer() {
-
-    sendMetric();
+long PinCounter::getValue()
+{
+    return mCounterTotal;
 }
 
-long PinCounter::getValue() {
-
-    return mTotal;
-}
-
-void PinCounter::setValue(long value) {
-
-    mTotal = value;
+void PinCounter::setValue(unsigned long value)
+{
+    mCounterTotal = value;
+    mBucket = 0;
 }
 
 } // namespace fm

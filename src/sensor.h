@@ -11,8 +11,9 @@
 
 #include <WiFiManager.h>
 
+#include <reporter.h>
+
 #include "TimerDispatcher.h"
-#include "Reporter.h"
 #include "NonVolitileCounter.h"
 
 #include "PinBase.h"
@@ -23,22 +24,29 @@ class DSSensorPin : PinBase, public TimerListener {
 public:
     class Sensor {
     public:
-        Sensor() : address(), tempC(0.0) { address.fill(0); }
+        Sensor() : mAddress(), tempC(0.0)
+        {
+            mAddress.fill(0);
+        }
+
         ~Sensor() = default;
 
-        operator uint8_t * () { return address.data(); };
+        operator uint8_t *() { return mAddress.data(); };
         operator const std::string () const {
             std::stringstream ss;
-            for (auto it = address.rbegin(); it != address.rend(); ++it) {
+            for (auto it = mAddress.rbegin(); it != mAddress.rend(); ++it)
+            {
                 ss << std::hex << std::uppercase << (int)*it;
             }
             return ss.str();
         }
-        
+
+        std::string address() const;
+
         void addParameters(WiFiManager& wm);
 
     public:
-        std::array<uint8_t, 8U> address;
+        std::array<uint8_t, 8U> mAddress;
         float tempC;
     private:
         uint16_t port;
@@ -48,7 +56,7 @@ public:
     using SensorIterator = std::list<Sensor>::iterator;
 
 public:
-    DSSensorPin(uint8_t pin, Reporter& reporter);
+    DSSensorPin(uint8_t pin, reporter::Reporter& reporter);
     ~DSSensorPin() = default;
 
     std::list<Sensor>::const_iterator begin() const;
@@ -61,14 +69,13 @@ public:
 
     void addParameters(WiFiManager& wm);
 
-    void send(Reporter& reporter);
+    void send(reporter::Reporter& reporter);
 
-    // Implement TimerListener
     void onTimer() override;
 
 private:
     OneWire mOneWire;
-    Reporter& mReporter;
+    reporter::Reporter& mReporter;
 
     std::list<Sensor> mSensors;
 };

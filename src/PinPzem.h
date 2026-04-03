@@ -7,9 +7,13 @@
 #include <SoftwareSerial.h>
 #endif
 
+#include <reporter.h>
+#include <config.h>
+
 #include "TimerDispatcher.h"
-#include "Reporter.h"
 #include "PinBase.h"
+
+#include "NonVolitileCounter.h"
 
 namespace app {
 
@@ -17,33 +21,25 @@ namespace app {
 
 class PinPzem : public TimerListener {
 public:
-    PinPzem(Reporter& reporter, float energyBase);
+    PinPzem(reporter::Reporter& reporter);
     ~PinPzem() = default;
 
-    void init(float value);
-
-    operator PZEM004Tv30() { return mPzem; }
-
-    // Inplement TimerListener
     void onTimer();
-
     void sendMetric();
-    
-    float getValue();
-    void setValue(float value);
+
+    uint32_t getValue();
+    void setValue(uint32_t value);
+
+    void correction(float correction);
 
 private:
-    Reporter& mReporter;
-
-#if defined(ESP8266)
     SoftwareSerial mSerial;
-#endif
     PZEM004Tv30 mPzem;
 
-    float mEnergyBase;
-    float mEnergySensor;
-    
-    secs mLastReportTime;
+    reporter::Reporter &mReporter;
+    double mEnergyTotal;
+
+    float mCorrection;
 };
 
 } // namespace fm

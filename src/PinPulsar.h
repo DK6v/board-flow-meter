@@ -1,9 +1,19 @@
+/*
+ * Copyright (C) 2026 Dmitry Korobkov <dmitry.korobkov.nn@gmail.com>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
+
 #pragma once
 
 #include <Arduino.h>
 
+#include <reporter.h>
+
 #include "TimerDispatcher.h"
-#include "Reporter.h"
 #include "PinBase.h"
 #include "PinOut.h"
 
@@ -15,27 +25,24 @@ namespace app {
 
 class PinPulsar : public TimerListener {
 public:
-    PinPulsar(Reporter& reporter, PinOut& power);
+    PinPulsar(reporter::Reporter& reporter, PinOut& power);
     ~PinPulsar() = default;
 
     operator Pulsar() { return mPulsar; }
 
-    // Inplement TimerListener
     void onTimer();
-
     void sendMetric();
-    
+
+    uint32_t getValue();
+
 private:
-    Reporter& mReporter;
+    reporter::Reporter& mReporter;
     PinOut& mPower;
 
-#if defined(ESP8266)
     SoftwareSerial mSerial;
-#endif
     Pulsar mPulsar;
 
-    float mLastHeatEnergy;
-    secs mLastReportTime;
+    uint32_t mHeatEnergyTotal;
 };
 
 } // namespace fm

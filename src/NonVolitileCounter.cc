@@ -1,6 +1,9 @@
 #include <Arduino.h>
+#include <console.h>
 
 #include "NonVolitileCounter.h"
+
+using namespace console;
 
 namespace app {
 
@@ -20,8 +23,7 @@ void NonVolitileCounter::init(uint32_t value) {
 
         mCounter = value;
 
-        Serial.print("Initialize non-volitile counter: address=");
-        Serial.println(mStartByteAddr);
+        LOG("nvc: init counter, start=%u", mStartByteAddr);
 
         EEPROM.write(mStartByteAddr, static_cast<uint8_t>(BYTE_START));
 
@@ -33,7 +35,7 @@ void NonVolitileCounter::init(uint32_t value) {
     else {
 
         for (mCurrentSlotIndex = 0; mCurrentSlotIndex < mNumSlots; ++mCurrentSlotIndex) {
-                
+
             if (EEPROM.read(mCurrentSlotAddr + sizeof(uint32_t)) == BYTE_STOP) {
                 break;
             }
@@ -41,12 +43,10 @@ void NonVolitileCounter::init(uint32_t value) {
             mCurrentSlotAddr += sizeof(uint32_t);
         }
 
-        Serial.print("Non-volitile counter: address[");
-        Serial.print(mCurrentSlotIndex);
-        Serial.print("]=");
-        Serial.println(mCurrentSlotAddr);
-
         EEPROM.get(mCurrentSlotAddr, mCounter);
+
+        LOG("nvc: start=0x%x, slot=%u, address=0x%x, value=%u",
+            mStartByteAddr, mCurrentSlotIndex, mCurrentSlotAddr, mCounter);
     }
 }
 
@@ -56,7 +56,7 @@ NonVolitileCounter & NonVolitileCounter::operator++() {
 
     EEPROM.put(mCurrentSlotAddr, static_cast<uint32_t>(mCounter));
     EEPROM.write(mCurrentSlotAddr + sizeof(uint32_t), static_cast<uint8_t>(BYTE_STOP));
-    
+
     mCommitRequired = true;
 
     return *this;
@@ -68,7 +68,7 @@ void NonVolitileCounter::operator=(const uint32_t& value) {
 
     EEPROM.put(mCurrentSlotAddr, static_cast<uint32_t>(mCounter));
     EEPROM.write(mCurrentSlotAddr + sizeof(uint32_t), static_cast<uint8_t>(BYTE_STOP));
-    
+
     EEPROM.commit();
 }
 

@@ -1,24 +1,33 @@
-#include "sensor.h"
+#undef LOG_MODULE
+#define LOG_MODULE "DLS"
 
+#include <macros.h>
+
+#include "sensor.h"
 #include "WmConfig.h"
+
+using namespace reporter;
 
 namespace app {
 
 // --------------------------------------------------------
 
-DSSensorPin::DSSensorPin(uint8_t pin, Reporter& reporter):
-    PinBase(pin),
+DSSensorPin::DSSensorPin(uint8_t pin, Reporter& reporter)
+  : PinBase(pin),
     mOneWire(pin),
     mReporter(reporter),
-    mSensors() {
-
+    mSensors()
+{
     pinMode(pin, INPUT);
 }
 
-std::list<DSSensorPin::Sensor>::const_iterator DSSensorPin::begin() const {
+std::list<DSSensorPin::Sensor>::const_iterator DSSensorPin::begin() const
+{
     return mSensors.begin();
 }
-std::list<DSSensorPin::Sensor>::const_iterator DSSensorPin::end() const {
+
+std::list<DSSensorPin::Sensor>::const_iterator DSSensorPin::end() const
+{
     return mSensors.end();
 }
 
@@ -38,7 +47,7 @@ void DSSensorPin::search() {
 void DSSensorPin::read() {
 
     DallasTemperature bus(&mOneWire);
-    
+
     bus.begin();
     bus.requestTemperatures();
 
@@ -61,7 +70,17 @@ app::Result DSSensorPin::get(std::string addr, float* out) const {
         }
     }
     return app::RESULT_NOENT;
-} 
+}
+
+std::string DSSensorPin::Sensor::address() const
+{
+    std::stringstream ss;
+    for (auto it = mAddress.rbegin(); it != mAddress.rend(); ++it)
+    {
+        ss << std::hex << std::uppercase << (int)*it;
+    }
+    return ss.str();
+}
 
 void DSSensorPin::addParameters(WiFiManager& wm) {
     for (auto & sensor : mSensors) {
@@ -69,8 +88,8 @@ void DSSensorPin::addParameters(WiFiManager& wm) {
     }
 }
 
-void DSSensorPin::Sensor::addParameters(WiFiManager& wm) {   
-    
+void DSSensorPin::Sensor::addParameters(WiFiManager& wm) {
+
     mParamHeader = std::string("Sensor ") +
                    static_cast<std::string>(*this) +
                    std::string("<hr><br/>");
@@ -80,10 +99,19 @@ void DSSensorPin::Sensor::addParameters(WiFiManager& wm) {
 }
 
 void DSSensorPin::send(Reporter& reporter) {
-    for (auto & sensor: mSensors) {
-        std::string metric = "temp,sensor=0x" + std::string(sensor)
-                           + " temp=" + std::to_string(sensor.tempC);
-        reporter.send(metric);
+
+    for (auto & sensor: mSensors)
+    {
+        LOGI("temperature: address=%s, value=%g", sensor.address().c_str(), ROUNDF(sensor.tempC, 2));
+
+        mReporter.clear();
+        mReporter.addTag("device_type", "dallas");
+        mReporter.addTag("device_id", sensor.address().c_str());
+        mReporter.addTag("entity_id", "temperature");
+        mReporter.addTag("entity_type", "gauge");
+        mReporter.addTag("entity_unit", "C");
+        mReporter.addField("value", ROUNDF(sensor.tempC, 2));
+        mReporter.send();
     }
 }
 

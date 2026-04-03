@@ -1,69 +1,114 @@
-#include <Arduino.h>
+/*
+ * Copyright (C) 2026 Dmitry Korobkov <dmitry.korobkov.nn@gmail.com>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
+
 #include <iomanip>
+
+#include <Arduino.h>
+#include <macros.h>
 
 #include "PinPulsar.h"
 
+using namespace reporter;
+
 namespace app {
 
-#if defined(ESP8266)
 PinPulsar::PinPulsar(Reporter &reporter, PinOut &power)
     : mReporter(reporter),
       mPower(power),
       mSerial(PIN_D1, PIN_D2),
       mPulsar(mSerial, 0x03574677),
-      mLastHeatEnergy(0.0),
-      mLastReportTime(app::TIME_INVALID) {
-    
+      mHeatEnergyTotal(0)
+{
     mSerial.begin(9600);
 }
-#else
-PinPulsar::PinPulsar(Reporter &reporter, PinOut &power)
-    : mReporter(reporter),
-      mPower(power),
-      mPulsar(Serial, 0x03574677),
-      mLastHeatEnergy(0.0),
-      mLastReportTime(app::TIME_INVALID) {}
-#endif
+
 void PinPulsar::onTimer() {
     sendMetric();
 }
 
 void PinPulsar::sendMetric() {
 
-    mPower.on();
-    delay(3 * app::SECONDS);
+    console::disable(); // syslog is still enabled
 
-    secs currentTime = millis() / app::SECONDS;
+    mPower.on();
+    delay(1 * app::SECONDS);
+
+    mSerial.begin(9600);
 
     if (mPulsar.update()) {
-    
-        std::stringstream ss;
-    
-        ss << std::fixed
-           << "heat-meter,sensor=pulsar"
-           << " tempIn="        << std::setprecision(2) << mPulsar.mChTempIn
-           << ",tempOut="       << std::setprecision(2) << mPulsar.mChTempOut
-           << ",tempDelta="     << std::setprecision(3) << mPulsar.mChTempDelta
-           << ",heatEnergy="    << std::setprecision(6) << mPulsar.mChHeatEnergy
-           << ",heatPower="     << std::setprecision(6) << mPulsar.mChHeatPower
-           << ",waterCapacity=" << std::setprecision(2) << mPulsar.mChWaterCapacity
-           << ",waterFlow="     << std::setprecision(2) << mPulsar.mChWaterFlow;
-     
-        if ((mLastHeatEnergy != 0.0) && (mLastReportTime != app::TIME_INVALID)) {
-        
-            ss << ",delta="    << std::setprecision(6) << (mPulsar.mChHeatEnergy - mLastHeatEnergy)
-               << ",duration=" << std::setprecision(3) << (currentTime - mLastReportTime);
-        }
 
+        mReporter.clear();
+        mReporter.addTag("device_type", "heat_meter");
+        mReporter.addTag("entity_id", "temperature_in");
+        mReporter.addTag("entity_type", "gauge");
+        mReporter.addTag("entity_unit", "C");
+        mReporter.addField("value", ROUNDF(mPulsar.mChTempIn, 2));
+        mReporter.send();
 
-        mReporter.send(ss.str());
-        
-        mLastHeatEnergy = mPulsar.mChHeatEnergy;
-        mLastReportTime = currentTime;
+        mReporter.clear();
+        mReporter.addTag("device_type", "heat_meter");
+        mReporter.addTag("entity_id", "temperature_out");
+        mReporter.addTag("entity_type", "gauge");
+        mReporter.addTag("entity_unit", "C");
+        mReporter.addField("value", ROUNDF(mPulsar.mChTempOut, 2));
+        mReporter.send();
+
+        mReporter.clear();
+        mReporter.addTag("device_type", "heat_meter");
+        mReporter.addTag("entity_id", "temperature_delta");
+        mReporter.addTag("entity_type", "gauge");
+        mReporter.addTag("entity_unit", "C");
+        mReporter.addField("value", ROUNDF(mPulsar.mChTempDelta, 2));
+        mReporter.send();
+
+        mReporter.clear();
+        mReporter.addTag("device_type", "heat_meter");
+        mReporter.addTag("entity_id", "energy");
+        mReporter.addTag("entity_type", "counter");
+        mReporter.addTag("entity_unit", "Gcal");
+        mReporter.addField("value", ROUNDF(mPulsar.mChHeatEnergy, 6));
+        mReporter.send();
+
+        mReporter.clear();
+        mReporter.addTag("device_type", "heat_meter");
+        mReporter.addTag("entity_id", "power");
+        mReporter.addTag("entity_type", "gauge");
+        mReporter.addTag("entity_unit", "Gcal/h");
+        mReporter.addField("value", ROUNDF(mPulsar.mChHeatPower, 3));
+        mReporter.send();
+
+        mReporter.clear();
+        mReporter.addTag("device_type", "heat_meter");
+        mReporter.addTag("entity_id", "volume");
+        mReporter.addTag("entity_type", "counter");
+        mReporter.addTag("entity_unit", "m3");
+        mReporter.addField("value", ROUNDF(mPulsar.mChWaterCapacity, 6));
+        mReporter.send();
+
+        mReporter.clear();
+        mReporter.addTag("device_type", "heat_meter");
+        mReporter.addTag("entity_id", "flow_rate");
+        mReporter.addTag("entity_type", "gauge");
+        mReporter.addTag("entity_unit", "m3/h");
+        mReporter.addField("value", ROUNDF(mPulsar.mChWaterFlow, 3));
+        mReporter.send();
+
+        mHeatEnergyTotal = static_cast<uint32_t>(mPulsar.mChHeatEnergy * 1'000'000.0);
     }
 
-    delay(1 * app::SECONDS);
     mPower.off();
+    console::restore();
 }
 
-} // namespace app 
+uint32_t PinPulsar::getValue()
+{
+    return mHeatEnergyTotal;
+}
+
+} // namespace app
