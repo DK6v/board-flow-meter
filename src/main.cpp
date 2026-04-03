@@ -28,7 +28,6 @@
 
 #include "TimerDispatcher.h"
 #include "sensor.h"
-#include "NonVolitileCounter.h"
 #include "PinLed.h"
 #include "PinPzem.h"
 #include "PinPulsar.h"

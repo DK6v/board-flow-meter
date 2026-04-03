@@ -12,7 +12,6 @@
 #include <config.h>
 
 #include "TimerDispatcher.h"
-#include "NonVolitileCounter.h"
 
 #include "PinBase.h"
 

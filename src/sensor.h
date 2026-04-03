@@ -14,7 +14,6 @@
 #include <reporter.h>
 
 #include "TimerDispatcher.h"
-#include "NonVolitileCounter.h"
 
 #include "PinBase.h"
 

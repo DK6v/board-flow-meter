@@ -13,8 +13,6 @@
 #include "TimerDispatcher.h"
 #include "PinBase.h"
 
-#include "NonVolitileCounter.h"
-
 namespace app {
 
 // -------------------------------------------------------
