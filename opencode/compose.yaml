@@ -1,0 +1,12 @@
+services:
+  opencode:
+    container_name: opencode
+    image: devcontainer-opencode-pio
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ..:/workspace
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
