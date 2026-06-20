@@ -33,6 +33,9 @@
 #include "PinPulsar.h"
 #include "PinCounter.h"
 #include "WmConfig.h"
+#include "CurrentTimeText.h"
+#include "network/Coap.h"
+#include "network/Clock.h"
 
 #define TICK_MS (10)
 
@@ -87,6 +90,8 @@ app::PinPzem pzemPowerMeter(defaultReporter);
 app::PinPulsar pulsarHeatMeter(defaultReporter, pulsarPowerPin);
 app::DSSensorPin sensors(PIN_D4, defaultReporter);
 
+app::Separator paramSeparator;
+app::CurrentTimeText paramCurrentTime;
 app::StringParameter paramMeasurement("measurement", "Measurement", "");
 app::FloatParameter paramColdWaterTotal("cold_water_total", "Cold Water Total (M3)", 0.0);
 app::FloatParameter paramHotWaterTotal("hot_water_total", "Hot Water Total (M3)", 0.0);
@@ -173,6 +178,25 @@ void saveParamsCallback () {
     }
 
     config.write(eeprom);
+}
+
+void syncClock() {
+
+    LOGD("request timestamp from CoAP config server %s:%d", CONFIG_HOST, CONFIG_PORT);
+
+    app::Coap coap(CONFIG_HOST, CONFIG_PORT);
+    coap.sync(mac);
+
+    if (coap.data.timestamp.has_value())
+    {
+        uint32_t timestamp = *coap.data.timestamp;
+        app::Clock::getInstance().sync(timestamp);
+        LOGI("clock synced from CoAP config server, epoch=%u", timestamp);
+    }
+    else
+    {
+        LOGW("no timestamp received from CoAP config server");
+    }
 }
 
 void setup() {
@@ -275,6 +299,8 @@ void setup() {
     wm.addParameter(&paramElectricityTotal);
     wm.addParameter(&paramHeatEnergyTotal);
     wm.addParameter(&paramPowerCorrection);
+    wm.addParameter(&paramSeparator);
+    wm.addParameter(&paramCurrentTime);
     wm.setSaveParamsCallback(saveParamsCallback);
 
     static auto sensorOnTimerCallback = []()
@@ -370,6 +396,16 @@ void setup() {
     syslog.init(SYSLOG_HOST, SYSLOG_PORT, mac.c_str());
 #endif
 
+    // Anchor wall-clock time to the CoAP config server, then keep it fresh
+    // (corrects drift and survives the ~49.7 day millis() rollover).
+    syncClock();
+
+    static auto clockSyncCallback = []() {
+        LOGD("clock re-sync timer expired");
+        syncClock();
+    };
+
+    td.startTimer(clockSyncCallback, (60 * app::MINUTES));
     td.startTimer(waterColdOnTimerCallback, (15 * app::MINUTES));
     td.startTimer(waterHotOnTimerCallback, (15 * app::MINUTES));
     td.startTimer(sensorOnTimerCallback, (15 * app::MINUTES));
