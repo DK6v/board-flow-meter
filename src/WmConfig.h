@@ -64,4 +64,10 @@ public:
     CustomText(const std::string & text) : WiFiManagerParameter(text.c_str()) {}
 };
 
+// Read-only horizontal rule to visually divide param-page sections.
+class Separator : public WiFiManagerParameter {
+public:
+    Separator() : WiFiManagerParameter("<hr>") {}
+};
+
 } // namespace app
