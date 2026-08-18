@@ -4,7 +4,7 @@
 #include <macros.h>
 
 #include "sensor.h"
-#include "WmConfig.h"
+#include "WifiManagerParameters.h"
 
 using namespace reporter;
 
@@ -94,7 +94,7 @@ void DSSensorPin::Sensor::addParameters(WiFiManager& wm) {
                    static_cast<std::string>(*this) +
                    std::string("<hr><br/>");
 
-    CustomText paramHeader(mParamHeader.c_str());
+    WMCustomText paramHeader(mParamHeader.c_str());
     wm.addParameter( &paramHeader );
 }
 

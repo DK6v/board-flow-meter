@@ -32,8 +32,8 @@
 #include "PinPzem.h"
 #include "PinPulsar.h"
 #include "PinCounter.h"
-#include "WmConfig.h"
-#include "CurrentTimeText.h"
+#include "WifiManagerParameters.h"
+
 #include "network/Coap.h"
 #include "network/Clock.h"
 
@@ -90,14 +90,15 @@ app::PinPzem pzemPowerMeter(defaultReporter);
 app::PinPulsar pulsarHeatMeter(defaultReporter, pulsarPowerPin);
 app::DSSensorPin sensors(PIN_D4, defaultReporter);
 
-app::Separator paramSeparator;
-app::CurrentTimeText paramCurrentTime;
-app::StringParameter paramMeasurement("measurement", "Measurement", "");
-app::FloatParameter paramColdWaterTotal("cold_water_total", "Cold Water Total (M3)", 0.0);
-app::FloatParameter paramHotWaterTotal("hot_water_total", "Hot Water Total (M3)", 0.0);
-app::FloatParameter paramElectricityTotal("electricity_total", "Electricity Total (kWh)", 0.0);
-app::FloatParameter paramHeatEnergyTotal("heat_energy_total", "Heat Energy Total (Gcal)", 0.0);
-app::FloatParameter paramPowerCorrection("power_correction", "Power Correction (Wh)", 0.0);
+app::WMSeparatorParameter paramSeparator;
+app::WMDeviceTimeParameter paramCurrentTime;
+app::WMVersionParameter paramVersion;
+app::WMStringParameter paramMeasurement("measurement", "Measurement", "");
+app::WMFloatParameter paramColdWaterTotal("cold_water_total", "Cold Water Total (M3)", 0.0);
+app::WMFloatParameter paramHotWaterTotal("hot_water_total", "Hot Water Total (M3)", 0.0);
+app::WMFloatParameter paramElectricityTotal("electricity_total", "Electricity Total (kWh)", 0.0);
+app::WMFloatParameter paramHeatEnergyTotal("heat_energy_total", "Heat Energy Total (Gcal)", 0.0);
+app::WMFloatParameter paramPowerCorrection("power_correction", "Power Correction (Wh)", 0.0);
 
 #include <string>
 #include <cstdarg>
@@ -301,6 +302,8 @@ void setup() {
     wm.addParameter(&paramPowerCorrection);
     wm.addParameter(&paramSeparator);
     wm.addParameter(&paramCurrentTime);
+    wm.addParameter(&paramSeparator);
+    wm.addParameter(&paramVersion);
     wm.setSaveParamsCallback(saveParamsCallback);
 
     static auto sensorOnTimerCallback = []()
