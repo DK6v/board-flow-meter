@@ -64,7 +64,7 @@ public:
     void search();
     void read();
 
-    app::Result get(std::string addr, float* out) const;
+    app::Result get(const std::string& addr, float* out) const;
 
     void addParameters(WiFiManager& wm);
 
@@ -79,4 +79,4 @@ private:
     std::list<Sensor> mSensors;
 };
 
-} // namespace fm
+} // namespace app

@@ -45,4 +45,4 @@ private:
     uint32_t mHeatEnergyTotal;
 };
 
-} // namespace fm
+} // namespace app

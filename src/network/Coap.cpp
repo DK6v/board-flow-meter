@@ -163,7 +163,7 @@ std::optional<Coap::CoAPResult> Coap::parsePacket(const std::vector<uint8_t>& pa
     return std::optional<CoAPResult>(std::move(result));
 }
 
-void Coap::request(std::string resource, uint16_t clientId = 0)
+void Coap::request(std::string resource, uint16_t clientId)
 {
     static uint16_t ix = 0;
 

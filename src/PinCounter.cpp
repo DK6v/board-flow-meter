@@ -101,4 +101,4 @@ void PinCounter::setValue(unsigned long value)
     mBucket = 0;
 }
 
-} // namespace fm
+} // namespace app

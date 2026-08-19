@@ -62,9 +62,9 @@ void DSSensorPin::read() {
     }
 }
 
-app::Result DSSensorPin::get(std::string addr, float* out) const {
+app::Result DSSensorPin::get(const std::string& addr, float* out) const {
     for (auto & sensor : mSensors) {
-        if (addr.compare(addr) == 0) {
+        if (addr.compare(sensor.address()) == 0) {
             *out = sensor.tempC;
             return app::RESULT_OK;
         }
@@ -120,4 +120,4 @@ void DSSensorPin::onTimer() {
     send(mReporter);
 }
 
-} // namespace fm
+} // namespace app

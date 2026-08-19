@@ -45,12 +45,12 @@ private:
     std::string mName;
     reporter::Reporter& mReporter;
 
-    uint64_t mBucket;
+    uint32_t mBucket;
     uint32_t mCounterTotal;
     uint32_t mMultiplier;
 
-    msec mLastState;
+    uint8_t mLastState;
     msec mLastCheckMs;
 };
 
-} // namespace fm
+} // namespace app

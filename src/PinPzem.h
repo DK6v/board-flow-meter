@@ -40,4 +40,4 @@ private:
     float mCorrection;
 };
 
-} // namespace fm
+} // namespace app

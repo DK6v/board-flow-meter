@@ -25,4 +25,4 @@ private:
     bool mInverted;
 };
 
-} // namespace fm
+} // namespace app

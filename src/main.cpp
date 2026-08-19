@@ -100,10 +100,6 @@ app::WMFloatParameter paramElectricityTotal("electricity_total", "Electricity To
 app::WMFloatParameter paramHeatEnergyTotal("heat_energy_total", "Heat Energy Total (Gcal)", 0.0);
 app::WMFloatParameter paramPowerCorrection("power_correction", "Power Correction (Wh)", 0.0);
 
-#include <string>
-#include <cstdarg>
-#include <cstdio>
-
 template <size_t size = 32>
 inline std::string format(const char *fmt, ...)
 {

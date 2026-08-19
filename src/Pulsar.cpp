@@ -182,7 +182,7 @@ bool Pulsar::read(std::vector<Channel> ch) {
                 case CH_TEMPC_DELTA:
                 {
                     mChTempDelta = fetch(buffer, chIx++);
-                    LOGI("CH_TEMPC_DELTA=%.2f", mChTempOut);
+                    LOGI("CH_TEMPC_DELTA=%.2f", mChTempDelta);
                     break;
                 }
                 case CH_HEAT_POWER:

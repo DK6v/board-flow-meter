@@ -52,4 +52,4 @@ void PinLed::shortBlink() {
     this->blink(5);
 }
 
-} // namespace fm
+} // namespace app

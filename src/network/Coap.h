@@ -17,7 +17,7 @@ public:
 
     const Coap& sync(std::string resource);
 
-    virtual void request(std::string resource, uint16_t clientId);
+    virtual void request(std::string resource, uint16_t clientId = 0);
     virtual void listen();
 
 private:
