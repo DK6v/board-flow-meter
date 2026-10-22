@@ -45,9 +45,9 @@ bool Pulsar::update()
 {
     unsigned long currentTime = millis();
 
-    if (mLastUpdate + updateInterval > currentTime)
+    if (currentTime - mLastUpdate < updateInterval)
     {
-        LOGI("data is up to date %u ms", mLastUpdate + updateInterval - currentTime);
+        LOGI("data is up to date %u ms", updateInterval - (currentTime - mLastUpdate));
         return true;
     }
 

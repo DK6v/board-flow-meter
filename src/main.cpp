@@ -239,9 +239,13 @@ void setup() {
     waterHotCounter.setValue(config.getOr<PersistCounter>(HOT_WATER, 0));
     pzemPowerMeter.setValue(config.getOr<PersistCounter>(ELECTRICITY, 0));
 
+    // Don't hang in the setup AP forever (e.g. router boots slower after a
+    // power outage): give up after a while and restart to retry the connection.
+    wm.setConfigPortalTimeout(180);
+
     if (!wm.autoConnect(wifiApName.c_str()))
     {
-        Serial.println("Wifi has been configured, restart");
+        Serial.println("Wifi is not connected, restart");
         delay(1000);
         ESP.restart();
     }

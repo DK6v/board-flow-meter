@@ -47,7 +47,8 @@ void TimerDispatcher::process()
     auto it = mTimers.begin();
     while (it != mTimers.end())
     {
-        if (currentTimeMs >= it->nextTime)
+        // Signed difference keeps the comparison valid across millis() rollover
+        if (static_cast<long>(currentTimeMs - it->nextTime) >= 0)
         {
             if (it->listener)
             {
@@ -62,7 +63,7 @@ void TimerDispatcher::process()
             {
                 it->nextTime += it->interval;
 
-                if (it->nextTime < currentTimeMs)
+                if (static_cast<long>(currentTimeMs - it->nextTime) > 0)
                 {
                     it->nextTime = currentTimeMs + it->interval;
                 }
@@ -76,7 +77,7 @@ void TimerDispatcher::process()
         }
     }
 
-    if (mLastTimeMs + 60000 < currentTimeMs)
+    if (currentTimeMs - mLastTimeMs > 60000)
     {
         mLastTimeMs = currentTimeMs;
     }

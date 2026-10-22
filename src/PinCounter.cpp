@@ -34,7 +34,7 @@ bool PinCounter::process() {
 
     msec currentTimeMs = millis();
 
-    if (mLastCheckMs < (currentTimeMs - 1000)) {
+    if (currentTimeMs - mLastCheckMs >= 1000) {
 
         mLastCheckMs = currentTimeMs;
 
