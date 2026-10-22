@@ -41,9 +41,9 @@
 
 #define TICK_MS (10)
 
-#define GCAL(calorie) (static_cast<float>(calorie) / 1'000'000)
-#define KWH(Wh) (static_cast<float>(Wh) / 1'000.0)
-#define M3(liter) (static_cast<float>(liter) / 1'000.0)
+#define GCAL(calorie) (static_cast<double>(calorie) / 1'000'000)
+#define KWH(Wh) (static_cast<double>(Wh) / 1'000)
+#define M3(liter) (static_cast<double>(liter) / 1'000)
 
 // using namespace console;
 using namespace reporter;
@@ -276,21 +276,21 @@ void setup() {
     }
 
     {
-        float value = M3(config.getOr<PersistCounter>(COLD_WATER, 0));
+        double value = M3(config.getOr<PersistCounter>(COLD_WATER, 0));
         paramColdWaterTotal.setValue(
             format("%.3f", value).c_str(),
             paramColdWaterTotal.getValueLength());
     }
 
     {
-        float value = M3(config.getOr<PersistCounter>(HOT_WATER, 0));
+        double value = M3(config.getOr<PersistCounter>(HOT_WATER, 0));
         paramHotWaterTotal.setValue(
             format("%.3f", value).c_str(),
             paramHotWaterTotal.getValueLength());
     }
 
     {
-        float value = KWH(config.getOr<PersistCounter>(ELECTRICITY, 0));
+        double value = KWH(config.getOr<PersistCounter>(ELECTRICITY, 0));
         paramElectricityTotal.setValue(
             format("%.3f", value).c_str(),
             paramElectricityTotal.getValueLength());
