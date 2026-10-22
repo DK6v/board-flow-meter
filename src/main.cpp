@@ -13,9 +13,11 @@
 #include <string>
 #include <vector>
 
+#include <cmath>
+
 #include <Arduino.h>
 #include <WiFiManager.h>
-#include <EEPROM.h>
+#include <flash_hal.h>
 #if defined(ESP8266)
 #include <ESP8266WebServer.h>
 #endif
@@ -84,6 +86,10 @@ app::TimerDispatcher td;
 const auto & wifiClient = WiFiClient();
 reporter::InfluxReporter defaultReporter(wifiClient, INFLUX_HOST, INFLUX_PORT);
 
+// Config journal in the FS area, the firmware doesn't mount a filesystem
+config::FlashEsp configFlash(FS_PHYS_ADDR, FS_PHYS_SIZE);
+config::Journal configJournal(configFlash);
+
 app::PinCounter waterColdCounter(PIN_D5, defaultReporter, "cold", 10);
 app::PinCounter waterHotCounter(PIN_D6, defaultReporter, "hot", 10);
 app::PinPzem pzemPowerMeter(defaultReporter);
@@ -113,9 +119,14 @@ inline std::string format(const char *fmt, ...)
     return std::string(buffer);
 }
 
+// Value from the web form in the stored units, rounded rather than truncated
+inline uint32_t toUnits(double value, double scale)
+{
+    return static_cast<uint32_t>(std::lround(value * scale));
+}
+
 void saveParamsCallback () {
 
-    auto eeprom = config::StorageEeprom(1024);
     auto & config = config::getInstance();
 
     {
@@ -131,7 +142,7 @@ void saveParamsCallback () {
     }
 
     {
-        auto value = static_cast<uint32_t>(paramColdWaterTotal.getValue() * 1'000);
+        auto value = toUnits(paramColdWaterTotal.getValue(), 1'000);
         auto persistent = config.getOr<PersistCounter>(COLD_WATER, 0).get();
         if (value != persistent)
         {
@@ -142,7 +153,7 @@ void saveParamsCallback () {
     }
 
     {
-        auto value = static_cast<uint32_t>(paramHotWaterTotal.getValue() * 1'000);
+        auto value = toUnits(paramHotWaterTotal.getValue(), 1'000);
         auto persistent = config.getOr<PersistCounter>(HOT_WATER, 0).get();
         if (value != persistent)
         {
@@ -153,7 +164,7 @@ void saveParamsCallback () {
     }
 
     {
-        auto value = static_cast<uint32_t>(paramElectricityTotal.getValue() * 1'000);
+        auto value = toUnits(paramElectricityTotal.getValue(), 1'000);
         auto persistent = config.getOr<PersistCounter>(ELECTRICITY, 0).get();
         if (value != persistent)
         {
@@ -164,7 +175,7 @@ void saveParamsCallback () {
     }
 
     {
-        auto value = paramPowerCorrection.getValue();
+        auto value = static_cast<float>(paramPowerCorrection.getValue());
         auto persistent = config.getOr<float>(ELECTRICITY_CORRECTION, 0.0);
         if (value != persistent)
         {
@@ -174,7 +185,7 @@ void saveParamsCallback () {
         }
     }
 
-    config.write(eeprom);
+    config.write(configJournal);
 }
 
 void syncClock() {
@@ -223,17 +234,19 @@ void setup() {
     std::string wifiApName = mac;
     std::ranges::transform(wifiApName, wifiApName.begin(), ::toupper);
 
-    config::StorageEeprom eeprom = config::StorageEeprom(1024);
-
     auto & config = config::getInstance()
-        .add<PersistCounter>(COLD_WATER, PersistCounter(0, 30))
-        .add<PersistCounter>(HOT_WATER, PersistCounter(0, 30))
-        .add<PersistCounter>(ELECTRICITY, PersistCounter(0, 30))
-        .add<PersistCounter>(HEAT_ENERGY, PersistCounter(0, 30))
+        .add<PersistCounter>(COLD_WATER, 0)
+        .add<PersistCounter>(HOT_WATER, 0)
+        .add<PersistCounter>(ELECTRICITY, 0)
+        .add<PersistCounter>(HEAT_ENERGY, 0)
         .add<float>(ELECTRICITY_CORRECTION, 1.0)
-        .add<std::string>(MEASUREMENT, "test")
-        .read(eeprom)
-        .write(eeprom);
+        .add<std::string>(MEASUREMENT, "test");
+
+    if (!config.read(configJournal))
+    {
+        LOGW("no stored config, defaults are used");
+    }
+    config.write(configJournal);
 
     waterColdCounter.setValue(config.getOr<PersistCounter>(COLD_WATER, 0));
     waterHotCounter.setValue(config.getOr<PersistCounter>(HOT_WATER, 0));
@@ -348,14 +361,13 @@ void setup() {
         LOGD("power meter timer expired");
         pzemPowerMeter.onTimer();
 
-        float value = pzemPowerMeter.getValue();
+        uint32_t value = pzemPowerMeter.getValue();
         paramElectricityTotal.setValue(
             format("%.3f", KWH(value)).c_str(),
             paramElectricityTotal.getValueLength());
 
         config.set<PersistCounter>(ELECTRICITY, value);
-        auto eeprom = config::StorageEeprom(1024);
-        config.write(eeprom);
+        config.write(configJournal);
     };
 
     static auto pulsarOnTimerCallback = []()
@@ -368,14 +380,13 @@ void setup() {
         LOGD("heat meter timer expired");
         pulsarHeatMeter.onTimer();
 
-        float value = pulsarHeatMeter.getValue();
+        uint32_t value = pulsarHeatMeter.getValue();
         paramHeatEnergyTotal.setValue(
             format("%.6f", GCAL(value)).c_str(),
             paramHeatEnergyTotal.getValueLength());
 
         config.set<PersistCounter>(HEAT_ENERGY, value);
-        auto eeprom = config::StorageEeprom(1024);
-        config.write(eeprom);
+        config.write(configJournal);
     };
 
     wm.setWebServerCallback([&]() {
@@ -439,30 +450,28 @@ void loop() {
     {
         LOGD("process cold water counter");
 
-        float value = waterColdCounter.getValue();
+        uint32_t value = waterColdCounter.getValue();
         paramColdWaterTotal.setValue(
             format("%.3f", M3(value)).c_str(),
             paramColdWaterTotal.getValueLength());
 
         auto &config = config::getInstance();
         config.set<PersistCounter>(COLD_WATER, value);
-        auto eeprom = config::StorageEeprom(1024);
-        config.write(eeprom);
+        config.write(configJournal);
     }
 
     if (waterHotCounter.process())
     {
         LOGD("process hot water counter");
 
-        float value = waterHotCounter.getValue();
+        uint32_t value = waterHotCounter.getValue();
         paramHotWaterTotal.setValue(
             format("%.3f", M3(value)).c_str(),
             paramHotWaterTotal.getValueLength());
 
         auto &config = config::getInstance();
         config.set<PersistCounter>(HOT_WATER, value);
-        auto eeprom = config::StorageEeprom(1024);
-        config.write(eeprom);
+        config.write(configJournal);
     }
 
     wm.process();

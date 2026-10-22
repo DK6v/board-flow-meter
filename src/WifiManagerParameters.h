@@ -32,8 +32,9 @@ public:
         init(id, placeholder, String(value).c_str(), length, "", WFM_LABEL_BEFORE);
     }
 
-    float getValue() {
-        return String(WiFiManagerParameter::getValue()).toFloat();
+    // Parsed as double: a float loses units of totals above 2^24
+    double getValue() {
+        return String(WiFiManagerParameter::getValue()).toDouble();
     }
 };
 
