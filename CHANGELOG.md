@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.3 — 2026-10-22
+
+### Changed
+- All dependencies are pinned to exact versions: the platform
+  (`espressif8266@4.2.1`), third-party libraries with their owners and the
+  `piolibs` libraries by tag, so a clean build is reproducible.
+
 ## 1.1.2 — 2026-10-22
 
 ### Fixed
