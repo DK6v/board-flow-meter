@@ -33,8 +33,8 @@ public:
     ~Pulsar() = default;
 
     static constexpr uint32_t baudrate = 9600;
-    // Time to wait for a complete response to one request
-    static constexpr uint32_t responseTimeout = 1000;
+    // Time to wait for a complete response to one request, the meter answers in ~65 ms
+    static constexpr uint32_t responseTimeout = 300;
     // The meter may miss requests right after power-on, retry for this long
     static constexpr uint32_t retryWindow = 6000;
     static constexpr uint32_t updateInterval = 1000;

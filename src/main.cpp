@@ -451,7 +451,8 @@ void setup() {
     LOG("Water counters (L): cold=%u, hot=%u",
         waterColdCounter.getValue(),
         waterHotCounter.getValue());
-    LOG("Pulsar heat meter (cal): %u", pulsarHeatMeter.getValue());
+    // The meter itself is read on the first timer, show the stored total until then
+    LOG("Pulsar heat meter (cal): %u", static_cast<unsigned>(config.getOr<PersistCounter>(HEAT_ENERGY, 0)));
     LOG("Pzem power meter (Wh): %u", pzemPowerMeter.getValue());
 }
 

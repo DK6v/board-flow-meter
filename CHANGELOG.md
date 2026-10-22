@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.1.6 — 2026-10-23
+
+### Changed
+- A Pulsar request is repeated after 300 ms without an answer instead of 1 s;
+  the meter answers in ~65 ms.
+
+### Fixed
+- The boot log showed the Pulsar heat total as 0 before the first reading;
+  it shows the stored total now.
+
 ## 1.1.5 — 2026-10-23
 
 ### Fixed
