@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.1.5 — 2026-10-23
+
+### Fixed
+- A Pulsar reading blocked the main loop for ~4 s, or ~7 s when the meter
+  missed the first request after power-on: every attempt waited 3 s for a
+  64-byte buffer although the response is 38 bytes. The response is now read
+  frame by frame and done as soon as it's complete, attempts wait up to 1 s
+  and are repeated for up to 6 s.
+- Noise bytes before a Pulsar response no longer make it fail.
+
+### Added
+- The attempt number and the time after the first request are logged for a
+  successful Pulsar reading, to tell whether the meter needs more time after
+  power-on.
+
 ## 1.1.4 — 2026-10-22
 
 ### Added

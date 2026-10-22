@@ -33,7 +33,10 @@ public:
     ~Pulsar() = default;
 
     static constexpr uint32_t baudrate = 9600;
-    static constexpr uint32_t readTimeout = 3000;
+    // Time to wait for a complete response to one request
+    static constexpr uint32_t responseTimeout = 1000;
+    // The meter may miss requests right after power-on, retry for this long
+    static constexpr uint32_t retryWindow = 6000;
     static constexpr uint32_t updateInterval = 1000;
 
     enum Function {
@@ -82,7 +85,7 @@ protected:
     uint8_t write(uint8_t *buffer_p, uint16_t value, Endianness byteOrder);
     uint8_t write(uint8_t *buffer_p, uint32_t value, Endianness byteOrder);
 
-    uint8_t receive(uint8_t *buffer, uint8_t length);
+    uint8_t receive(uint8_t *buffer, uint8_t size);
 
     float fetch(uint8_t *buffer_p, uint8_t index);
 

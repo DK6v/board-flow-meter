@@ -10,8 +10,6 @@
 #undef LOG_MODULE
 #define LOG_MODULE "PULSAR"
 
-#define MAX_RETRIES 3
-
 #include <Arduino.h>
 #include "Pulsar.h"
 
@@ -43,20 +41,16 @@ Pulsar::Pulsar(HardwareSerial& port, uint32_t address)
 
 bool Pulsar::update()
 {
-    unsigned long currentTime = millis();
+    unsigned long startTime = millis();
 
-    if (currentTime - mLastUpdate < updateInterval)
+    if (startTime - mLastUpdate < updateInterval)
     {
-        LOGI("data is up to date %u ms", updateInterval - (currentTime - mLastUpdate));
+        LOGI("data is up to date %u ms", updateInterval - (startTime - mLastUpdate));
         return true;
     }
 
-    while (mSerial_p->available())
-    {
-        mSerial_p->read();
-    }
-
-    for (int attempts = 0; attempts < MAX_RETRIES; attempts++)
+    // Retry until the meter answers or the time to wake it up is over
+    for (unsigned attempt = 1; millis() - startTime < retryWindow; ++attempt)
     {
         if (read(std::vector<app::Pulsar::Channel>{
                 app::Pulsar::CH_TEMPC_IN,
@@ -69,12 +63,12 @@ bool Pulsar::update()
         {
             mLastUpdate = millis();
 
-            LOGI("read attempt %u/%u succeeded", attempts + 1, MAX_RETRIES);
+            LOGI("read attempt %u succeeded, %lu ms after the first request",
+                 attempt, mLastUpdate - startTime);
             return true;
         }
 
-        LOGI("read attempt %u failed", attempts + 1, MAX_RETRIES);
-        delay(10);
+        LOGI("read attempt %u failed", attempt);
     }
 
     return false;
@@ -136,10 +130,23 @@ bool Pulsar::read(std::vector<Channel> ch) {
         mask |= 1 << (shift - 1);
     }
 
+    // Drop leftovers, e.g. a late answer to the previous request
+    while (mSerial_p->available())
+    {
+        mSerial_p->read();
+    }
+
     write(FN_READ_CHANNEL,
           static_cast<uint32_t>(mask));
 
     uint8_t size = receive(buffer, sizeof(buffer));
+
+    // Header, a float per channel, user data and CRC
+    if ((size > 0) && (size != IX_DATA + sizeof(float) * ch.size() + 4))
+    {
+        LOGE("unexpected response size=%u for %u channels", size, ch.size());
+        size = 0;
+    }
     LOGV_ADD("received: buffer size=%u", size);
 
     for (u_int8_t ix = 0; ix < size; ++ix)
@@ -227,30 +234,59 @@ bool Pulsar::read(std::vector<Channel> ch) {
 
 uint8_t Pulsar::receive(uint8_t *buffer, uint8_t size) {
 
+    // A response starts with the meter address, bytes before it are noise
+    const uint8_t address[] = {
+        static_cast<uint8_t>(mAddress >> 24), static_cast<uint8_t>(mAddress >> 16),
+        static_cast<uint8_t>(mAddress >> 8), static_cast<uint8_t>(mAddress)};
+
     uint8_t index = 0;
+    uint8_t length = 0;  // frame length from the header, 0 until received
     unsigned long startTime = millis();
 
-    while (index < size)
+    while (millis() - startTime < responseTimeout)
     {
-        if (mSerial_p->available() > 0)
+        if (mSerial_p->available() <= 0)
         {
-            buffer[index++] = (uint8_t)mSerial_p->read();
+            delay(1);
+            continue;
         }
 
-        if ((millis() - startTime) > readTimeout)
+        uint8_t value = static_cast<uint8_t>(mSerial_p->read());
+
+        if ((index < sizeof(address)) && (value != address[index]))
         {
-            LOGD("receive timeout, size=%u", index);
-            break;
+            LOGD("receive: skip byte 0x%02x", value);
+            index = 0;
+            if (value != address[0])
+            {
+                continue;
+            }
         }
 
-        yield();
-        delay(10);
+        buffer[index++] = value;
+
+        if (index == IX_DATA)
+        {
+            // Address, function, length, user data and CRC at least
+            length = buffer[IX_SIZE];
+            if ((length < IX_DATA + 4) || (length > size))
+            {
+                LOGD("receive: invalid length=%u", length);
+                return 0;
+            }
+        }
+
+        if ((length > 0) && (index == length))
+        {
+            bool valid = checkCRC(buffer, length);
+            LOGD("receive: size=%u, checksum is valid=%s, %lu ms",
+                 length, valid ? "yes" : "NO", millis() - startTime);
+            return valid ? length : 0;
+        }
     }
 
-    u_int8_t result = checkCRC(buffer, index) ? index : 0;
-    LOGD("receive, checksum is valid=%s", result ? "yes" : "NO" );
-
-    return result ? index : 0;
+    LOGD("receive timeout, size=%u", index);
+    return 0;
 }
 
 float Pulsar::fetch(uint8_t *buffer_p, uint8_t index = 0) {
