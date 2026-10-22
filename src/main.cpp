@@ -171,6 +171,7 @@ void saveParamsCallback () {
             LOGI("electricity, set new value=%u, previous=%u", value, persistent);
             config.set<PersistCounter>(ELECTRICITY, value);
             pzemPowerMeter.setValue(value);
+            pzemPowerMeter.discardPending();
         }
     }
 

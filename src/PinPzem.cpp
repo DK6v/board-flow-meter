@@ -17,6 +17,7 @@ PinPzem::PinPzem(Reporter& reporter)
       mPzem(mSerial),
       mReporter(reporter),
       mEnergyTotal(0.0),
+      mEnergyCounted(0.0),
       mCorrection(0.0)
 {
     mSerial.begin(9600);
@@ -81,9 +82,19 @@ void PinPzem::sendMetric() {
 
     if (!std::isnan(energy))
     {
-        mPzem.resetEnergy();
+        // The PZEM keeps its counter across reboots, so after a reboot the
+        // first read still gets the energy since the last reset. A reading
+        // below the counted energy means the counter was reset after all.
+        double energyWh = energy * 1000;
+        double energyDelta = (energyWh >= mEnergyCounted) ? (energyWh - mEnergyCounted) : energyWh;
 
-        double energyDelta = energy * 1000;
+        // If the reset fails, the next read must not count this energy again
+        mEnergyCounted = mPzem.resetEnergy() ? 0.0 : energyWh;
+        if (mEnergyCounted > 0.0)
+        {
+            LOGW("energy reset failed, counted=%.0f Wh", mEnergyCounted);
+        }
+
         energyDelta += energyDelta * mCorrection;
 
         mEnergyTotal += energyDelta;
@@ -114,7 +125,17 @@ uint32_t PinPzem::getValue()
 void PinPzem::setValue(uint32_t value)
 {
     mEnergyTotal = value;
-    mPzem.resetEnergy();
+}
+
+void PinPzem::discardPending()
+{
+    double energy = mPzem.energy();
+    mEnergyCounted = std::isnan(energy) ? 0.0 : energy * 1000;
+
+    if (mPzem.resetEnergy())
+    {
+        mEnergyCounted = 0.0;
+    }
 }
 
 void PinPzem::correction(float correction)

@@ -26,7 +26,10 @@ public:
     void sendMetric();
 
     uint32_t getValue();
+    // Set the total, energy accumulated in the PZEM is still counted on the next read
     void setValue(uint32_t value);
+    // Drop the energy accumulated in the PZEM, it's included in a total entered by the user
+    void discardPending();
 
     void correction(float correction);
 
@@ -36,6 +39,10 @@ private:
 
     reporter::Reporter &mReporter;
     double mEnergyTotal;
+
+    // Energy (Wh) in the PZEM counter that is already added to the total,
+    // non-zero only if resetting the counter failed
+    double mEnergyCounted;
 
     float mCorrection;
 };

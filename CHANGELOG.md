@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.1.2 — 2026-10-22
+
+### Fixed
+- Electricity used since the last PZEM reading (up to 30 minutes) was lost on
+  every reboot: the PZEM energy counter was reset at boot. It's now reset only
+  when a new total is entered in the web form; after a reboot the first reading
+  still counts the energy accumulated in the PZEM.
+- A failed PZEM energy reset made the next reading count the same energy
+  again; the counted energy is now remembered and subtracted.
+
 ## 1.1.1 — 2026-10-22
 
 ### Fixed
