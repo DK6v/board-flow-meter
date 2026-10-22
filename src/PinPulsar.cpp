@@ -7,8 +7,6 @@
  * (at your option) any later version.
  */
 
-#include <iomanip>
-
 #include <Arduino.h>
 #include <macros.h>
 

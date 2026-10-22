@@ -74,12 +74,15 @@ app::Result DSSensorPin::get(const std::string& addr, float* out) const {
 
 std::string DSSensorPin::Sensor::address() const
 {
-    std::stringstream ss;
+    // Bytes from the last one in hex without leading zeros, as in the reported
+    // device_id; snprintf instead of a stringstream saves ~6 KB of RAM
+    char buffer[2 * std::tuple_size<decltype(mAddress)>::value + 1] = {0};
+    char *npos = buffer;
     for (auto it = mAddress.rbegin(); it != mAddress.rend(); ++it)
     {
-        ss << std::hex << std::uppercase << (int)*it;
+        npos += snprintf(npos, buffer + sizeof(buffer) - npos, "%X", *it);
     }
-    return ss.str();
+    return buffer;
 }
 
 void DSSensorPin::addParameters(WiFiManager& wm) {

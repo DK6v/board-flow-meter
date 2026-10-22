@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.1.8 — 2026-10-23
+
+### Changed
+- ~10 KB more free heap (~25 KB instead of ~15 KB) and a 156 KB smaller
+  firmware: DS18B20 addresses are formatted with `snprintf` instead of
+  `std::stringstream`, which pulled in the C++ locale machinery.
+
+### Added
+- Free heap, the largest free block and heap fragmentation are logged at boot
+  and every 15 minutes.
+
 ## 1.1.7 — 2026-10-23
 
 ### Fixed

@@ -3,7 +3,6 @@
 #include <list>
 #include <array>
 #include <string>
-#include <sstream>
 
 #include <Arduino.h>
 #include <WiFiManager.h>

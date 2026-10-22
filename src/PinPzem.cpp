@@ -1,7 +1,6 @@
 #undef LOG_MODULE
 #define LOG_MODULE "PZEM"
 
-#include <iomanip>
 #include <Arduino.h>
 #include <console.h>
 

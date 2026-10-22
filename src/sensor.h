@@ -3,7 +3,6 @@
 #include <list>
 #include <array>
 #include <string>
-#include <sstream>
 
 #include <Arduino.h>
 #include "OneWire.h"
@@ -31,14 +30,7 @@ public:
         ~Sensor() = default;
 
         operator uint8_t *() { return mAddress.data(); };
-        operator const std::string () const {
-            std::stringstream ss;
-            for (auto it = mAddress.rbegin(); it != mAddress.rend(); ++it)
-            {
-                ss << std::hex << std::uppercase << (int)*it;
-            }
-            return ss.str();
-        }
+        operator const std::string () const { return address(); }
 
         std::string address() const;
 

@@ -430,6 +430,15 @@ void setup() {
         syncClock();
     };
 
+    // WiFiManager builds a page in one String, so the largest free block
+    // matters as much as the free heap
+    static auto heapCallback = []() {
+        LOGI("heap: free=%u, max block=%u, fragmentation=%u%%",
+             ESP.getFreeHeap(), ESP.getMaxFreeBlockSize(), ESP.getHeapFragmentation());
+    };
+    heapCallback();
+
+    td.startTimer(heapCallback, (15 * app::MINUTES));
     td.startTimer(clockSyncCallback, (60 * app::MINUTES));
     td.startTimer(waterColdOnTimerCallback, (15 * app::MINUTES));
     td.startTimer(waterHotOnTimerCallback, (15 * app::MINUTES));
