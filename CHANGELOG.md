@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.1.7 — 2026-10-23
+
+### Fixed
+- Since 1.1.3 the `device_id` tag was added again with every report
+  (`reporter` 1.0.0 didn't clear headers): metrics got duplicate tags, then
+  stopped fitting the buffer and weren't sent, and memory leaked until the
+  board would run out of heap. Fixed by `reporter` 1.0.1.
+- Fractional values were sent to InfluxDB with 6 significant digits
+  (e.g. 16791853 Wh as `1.67919e+07`); `reporter` 1.0.1 sends them with
+  6 decimals, trailing zeros trimmed.
+- A `%` in the measurement name could crash the board when sending.
+
 ## 1.1.6 — 2026-10-23
 
 ### Changed
