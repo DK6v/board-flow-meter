@@ -85,6 +85,8 @@ app::PinOut pulsarPowerPin(PIN_D8);
 app::TimerDispatcher td;
 const auto & wifiClient = WiFiClient();
 reporter::InfluxReporter defaultReporter(wifiClient, INFLUX_HOST, INFLUX_PORT);
+// A poll sends its metrics in one connection, an unreachable server delays it once
+constexpr unsigned long REPORT_TIMEOUT_MS = 2000;
 
 // Config journal in the FS area, the firmware doesn't mount a filesystem
 config::FlashEsp configFlash(FS_PHYS_ADDR, FS_PHYS_SIZE);
@@ -275,6 +277,7 @@ void setup() {
 
         defaultReporter.create(value.c_str());
         defaultReporter.addHeader("device_id", mac);
+        defaultReporter.setTimeout(REPORT_TIMEOUT_MS);
     }
 
     {
@@ -328,7 +331,9 @@ void setup() {
         defaultReporter.create(config.getOr<std::string>(MEASUREMENT, "test").c_str());
 
         LOGD("dallas sensors reporter timer expired");
+        defaultReporter.beginBatch();
         sensors.onTimer();
+        defaultReporter.commit();
     };
 
     static auto waterColdOnTimerCallback = []()
@@ -339,7 +344,9 @@ void setup() {
         defaultReporter.addHeader("device_id", mac);
 
         LOGD("cold water reporter timer expired");
+        defaultReporter.beginBatch();
         waterColdCounter.onTimer();
+        defaultReporter.commit();
     };
 
     static auto waterHotOnTimerCallback = []()
@@ -350,7 +357,9 @@ void setup() {
         defaultReporter.addHeader("device_id", mac);
 
         LOGD("hot water reporter timer expired");
+        defaultReporter.beginBatch();
         waterHotCounter.onTimer();
+        defaultReporter.commit();
     };
 
     static auto pzemOnTimerCallback = []()
@@ -361,7 +370,9 @@ void setup() {
         defaultReporter.addHeader("device_id", mac);
 
         LOGD("power meter timer expired");
+        defaultReporter.beginBatch();
         pzemPowerMeter.onTimer();
+        defaultReporter.commit();
 
         uint32_t value = pzemPowerMeter.getValue();
         paramElectricityTotal.setValue(
@@ -382,7 +393,11 @@ void setup() {
         LOGD("heat meter timer expired");
 
         // Keep the stored total if the meter didn't answer
-        if (!pulsarHeatMeter.sendMetric())
+        defaultReporter.beginBatch();
+        bool updated = pulsarHeatMeter.sendMetric();
+        defaultReporter.commit();
+
+        if (!updated)
         {
             LOGW("heat meter read failed");
             return;

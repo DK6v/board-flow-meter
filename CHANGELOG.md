@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.9 — 2026-10-23
+
+### Changed
+- Each poll sends its metrics in one connection (`reporter` 1.1.0) instead of
+  one connection per metric, and resolving the host and connecting are limited
+  to 2 s. An unreachable InfluxDB/Telegraf now delays a poll by up to 2 s once
+  instead of up to 5 s for every metric; the metrics of that poll are dropped.
+- Metrics follow the line protocol escaping and end with a newline.
+
 ## 1.1.8 — 2026-10-23
 
 ### Changed
