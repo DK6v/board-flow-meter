@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.1.4 — 2026-10-22
+
+### Added
+- The firmware version and the reason of the last reset (watchdog, exception
+  with its address) are sent to syslog at boot.
+
+### Fixed
+- Power correction is the number of Wh added per counted kWh, as labeled in
+  the web form; it was applied per Wh, i.e. 1000 times too strong. The stored
+  correction is now applied at boot, before it was used only after the form
+  was saved.
+- The heat energy total was overwritten with 0 when the first Pulsar reading
+  after boot failed; it's now stored only after a successful reading.
+- DS18B20 readings of -127 °C (sensor didn't answer) and 85 °C (power-on value)
+  are no longer reported.
+
 ## 1.1.3 — 2026-10-22
 
 ### Changed

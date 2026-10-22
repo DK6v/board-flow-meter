@@ -104,7 +104,7 @@ app::WMFloatParameter paramColdWaterTotal("cold_water_total", "Cold Water Total 
 app::WMFloatParameter paramHotWaterTotal("hot_water_total", "Hot Water Total (M3)", 0.0);
 app::WMFloatParameter paramElectricityTotal("electricity_total", "Electricity Total (kWh)", 0.0);
 app::WMFloatParameter paramHeatEnergyTotal("heat_energy_total", "Heat Energy Total (Gcal)", 0.0);
-app::WMFloatParameter paramPowerCorrection("power_correction", "Power Correction (Wh)", 0.0);
+app::WMFloatParameter paramPowerCorrection("power_correction", "Power Correction (Wh per kWh)", 0.0);
 
 template <size_t size = 32>
 inline std::string format(const char *fmt, ...)
@@ -252,6 +252,7 @@ void setup() {
     waterColdCounter.setValue(config.getOr<PersistCounter>(COLD_WATER, 0));
     waterHotCounter.setValue(config.getOr<PersistCounter>(HOT_WATER, 0));
     pzemPowerMeter.setValue(config.getOr<PersistCounter>(ELECTRICITY, 0));
+    pzemPowerMeter.correction(config.getOr<float>(ELECTRICITY_CORRECTION, 1.0));
 
     // Don't hang in the setup AP forever (e.g. router boots slower after a
     // power outage): give up after a while and restart to retry the connection.
@@ -379,7 +380,13 @@ void setup() {
         defaultReporter.addHeader("device_id", mac);
 
         LOGD("heat meter timer expired");
-        pulsarHeatMeter.onTimer();
+
+        // Keep the stored total if the meter didn't answer
+        if (!pulsarHeatMeter.sendMetric())
+        {
+            LOGW("heat meter read failed");
+            return;
+        }
 
         uint32_t value = pulsarHeatMeter.getValue();
         paramHeatEnergyTotal.setValue(
@@ -410,6 +417,9 @@ void setup() {
     auto &syslog = console::SyslogReporter::getInstance();
     syslog.init(SYSLOG_HOST, SYSLOG_PORT, mac.c_str());
 #endif
+
+    // The reason of the last reset goes to syslog, e.g. a watchdog or an exception
+    LOGW("version=%s, reset: %s", APP_VERSION, ESP.getResetInfo().c_str());
 
     // Anchor wall-clock time to the CoAP config server, then keep it fresh
     // (corrects drift and survives the ~49.7 day millis() rollover).

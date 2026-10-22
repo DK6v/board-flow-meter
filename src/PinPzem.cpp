@@ -95,7 +95,8 @@ void PinPzem::sendMetric() {
             LOGW("energy reset failed, counted=%.0f Wh", mEnergyCounted);
         }
 
-        energyDelta += energyDelta * mCorrection;
+        // Correction: Wh added per counted kWh
+        energyDelta += energyDelta / 1000 * mCorrection;
 
         mEnergyTotal += energyDelta;
 

@@ -102,6 +102,14 @@ void DSSensorPin::send(Reporter& reporter) {
 
     for (auto & sensor: mSensors)
     {
+        // -127 means the sensor didn't answer, 85 is the value after power-on
+        // before the first conversion
+        if ((sensor.tempC == DEVICE_DISCONNECTED_C) || (sensor.tempC == 85.0f))
+        {
+            LOGW("temperature: address=%s, invalid value=%g, skip", sensor.address().c_str(), sensor.tempC);
+            continue;
+        }
+
         LOGI("temperature: address=%s, value=%g", sensor.address().c_str(), ROUNDF(sensor.tempC, 2));
 
         mReporter.clear();

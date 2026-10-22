@@ -32,7 +32,7 @@ void PinPulsar::onTimer() {
     sendMetric();
 }
 
-void PinPulsar::sendMetric() {
+bool PinPulsar::sendMetric() {
 
     console::disable(); // syslog is still enabled
 
@@ -41,7 +41,8 @@ void PinPulsar::sendMetric() {
 
     mSerial.begin(9600);
 
-    if (mPulsar.update()) {
+    bool updated = mPulsar.update();
+    if (updated) {
 
         mReporter.clear();
         mReporter.addTag("device_type", "heat_meter");
@@ -104,6 +105,8 @@ void PinPulsar::sendMetric() {
 
     mPower.off();
     console::restore();
+
+    return updated;
 }
 
 uint32_t PinPulsar::getValue()

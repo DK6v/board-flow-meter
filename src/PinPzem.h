@@ -31,6 +31,7 @@ public:
     // Drop the energy accumulated in the PZEM, it's included in a total entered by the user
     void discardPending();
 
+    // Wh added per counted kWh
     void correction(float correction);
 
 private:

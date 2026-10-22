@@ -31,7 +31,8 @@ public:
     operator Pulsar() { return mPulsar; }
 
     void onTimer();
-    void sendMetric();
+    // Returns false if the meter didn't answer
+    bool sendMetric();
 
     uint32_t getValue();
 
