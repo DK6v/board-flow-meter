@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.13 — 2026-10-25
+
+### Changed
+- Serial logs at 74880 baud instead of 9600, the speed of the ESP8266 boot ROM:
+  the boot messages (reset cause, exception dumps) and the firmware logs are
+  readable in one monitor, and writing the logs blocks the main loop ~8 times
+  shorter. `pio device monitor` picks the speed from `platformio.ini`.
+
 ## 1.1.12 — 2026-10-25
 
 ### Fixed
