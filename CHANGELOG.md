@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.11 — 2026-10-25
+
+### Changed
+- `macros` 1.0.2: `ROUNDF` rounds with `round()` instead of converting through
+  `int64_t`, with the same results; the firmware is 656 bytes smaller.
+
 ## 1.1.10 — 2026-10-25
 
 ### Fixed
