@@ -295,13 +295,19 @@ void setup() {
 
     web.item("Device time (UTC)", deviceTime, portal::Access::Public);
 
-    web.on("/request", [](ESP8266WebServer &server) {
-        server.send(200, "text/plain", "Measurements update have been requested.");
-
+    static auto requestCallback = []()
+    {
         pulsarOnTimerCallback();
         pzemOnTimerCallback();
         sensorOnTimerCallback();
+    };
+
+    // GET for scripts, the button on the local dashboard
+    web.on("/request", [](ESP8266WebServer &server) {
+        server.send(200, "text/plain", "Measurements update have been requested.");
+        requestCallback();
     });
+    web.action("/request", "Request measurements", "Requesting…", "Measurements sent", requestCallback);
 
     // Don't hang in the setup AP forever (e.g. router boots slower after a
     // power outage): give up after a while and restart to retry the connection.
