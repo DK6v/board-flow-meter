@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.10 — 2026-10-25
+
+### Fixed
+- Values rounded for InfluxDB were clamped once their scaled form exceeded
+  2^31 (`macros` 1.0.1): the Pulsar volume above 2147.48 m³ was sent as
+  2147.48, and the electricity total would have stuck at 21474.8 kWh.
+- Negative values, e.g. the Pulsar temperature delta, were rounded towards
+  zero instead of to the closest value.
+
 ## 1.1.9 — 2026-10-23
 
 ### Changed
