@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.12 — 2026-10-25
+
+### Fixed
+- With an unreachable DNS server every log line waited up to 10 s for the
+  syslog server address (`console` 1.0.1): the address is now looked up once,
+  limited to 1 s, retried after a minute and refreshed every hour.
+- A syslog message over 160 bytes was sent with bytes read past its buffer.
+
 ## 1.1.11 — 2026-10-25
 
 ### Changed
