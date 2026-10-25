@@ -5,7 +5,6 @@
 #include <string>
 
 #include <Arduino.h>
-#include <WiFiManager.h>
 
 #include <reporter.h>
 #include <config.h>

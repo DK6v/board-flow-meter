@@ -8,8 +8,6 @@
 #include "OneWire.h"
 #include "DallasTemperature.h"
 
-#include <WiFiManager.h>
-
 #include <reporter.h>
 
 #include "TimerDispatcher.h"
@@ -34,15 +32,11 @@ public:
 
         std::string address() const;
 
-        void addParameters(WiFiManager& wm);
-
     public:
         std::array<uint8_t, 8U> mAddress;
         float tempC;
     private:
         uint16_t port;
-
-        std::string mParamHeader;
     };
     using SensorIterator = std::list<Sensor>::iterator;
 
@@ -57,8 +51,6 @@ public:
     void read();
 
     app::Result get(const std::string& addr, float* out) const;
-
-    void addParameters(WiFiManager& wm);
 
     void send(reporter::Reporter& reporter);
 

@@ -4,7 +4,6 @@
 #include <macros.h>
 
 #include "sensor.h"
-#include "WifiManagerParameters.h"
 
 using namespace reporter;
 
@@ -83,22 +82,6 @@ std::string DSSensorPin::Sensor::address() const
         npos += snprintf(npos, buffer + sizeof(buffer) - npos, "%X", *it);
     }
     return buffer;
-}
-
-void DSSensorPin::addParameters(WiFiManager& wm) {
-    for (auto & sensor : mSensors) {
-        sensor.addParameters(wm);
-    }
-}
-
-void DSSensorPin::Sensor::addParameters(WiFiManager& wm) {
-
-    mParamHeader = std::string("Sensor ") +
-                   static_cast<std::string>(*this) +
-                   std::string("<hr><br/>");
-
-    WMCustomText paramHeader(mParamHeader.c_str());
-    wm.addParameter( &paramHeader );
 }
 
 void DSSensorPin::send(Reporter& reporter) {

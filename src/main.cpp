@@ -11,21 +11,17 @@
 #define LOG_MODULE "MAIN"
 
 #include <string>
-#include <vector>
 
-#include <cmath>
+#include <ctime>
 
 #include <Arduino.h>
-#include <WiFiManager.h>
 #include <flash_hal.h>
-#if defined(ESP8266)
-#include <ESP8266WebServer.h>
-#endif
 
 #include <console.h>
 #include <checksum.h>
 #include <reporter.h>
 #include <config.h>
+#include <portal.h>
 #include <console/SyslogReporter.h>
 
 #include "TimerDispatcher.h"
@@ -34,16 +30,11 @@
 #include "PinPzem.h"
 #include "PinPulsar.h"
 #include "PinCounter.h"
-#include "WifiManagerParameters.h"
 
 #include "network/Coap.h"
 #include "network/Clock.h"
 
 #define TICK_MS (10)
-
-#define GCAL(calorie) (static_cast<double>(calorie) / 1'000'000)
-#define KWH(Wh) (static_cast<double>(Wh) / 1'000)
-#define M3(liter) (static_cast<double>(liter) / 1'000)
 
 // using namespace console;
 using namespace reporter;
@@ -76,7 +67,7 @@ constexpr CONFIG::ID MEASUREMENT = static_cast<CONFIG::ID>(CONFIG::ID::CUSTOM_ST
  */
 
 std::string mac;
-WiFiManager wm;
+portal::Portal web;
 
 app::PinLed redLed(PIN_D3);
 app::PinLed blueLed(PIN_D4);
@@ -98,97 +89,17 @@ app::PinPzem pzemPowerMeter(defaultReporter);
 app::PinPulsar pulsarHeatMeter(defaultReporter, pulsarPowerPin);
 app::DSSensorPin sensors(PIN_D4, defaultReporter);
 
-app::WMSeparatorParameter paramSeparator;
-app::WMDeviceTimeParameter paramCurrentTime;
-app::WMVersionParameter paramVersion;
-app::WMStringParameter paramMeasurement("measurement", "Measurement", "");
-app::WMFloatParameter paramColdWaterTotal("cold_water_total", "Cold Water Total (M3)", 0.0);
-app::WMFloatParameter paramHotWaterTotal("hot_water_total", "Hot Water Total (M3)", 0.0);
-app::WMFloatParameter paramElectricityTotal("electricity_total", "Electricity Total (kWh)", 0.0);
-app::WMFloatParameter paramHeatEnergyTotal("heat_energy_total", "Heat Energy Total (Gcal)", 0.0);
-app::WMFloatParameter paramPowerCorrection("power_correction", "Power Correction (Wh per kWh)", 0.0);
-
-template <size_t size = 32>
-inline std::string format(const char *fmt, ...)
+// Wall-clock time from the CoAP config server, there is no RTC
+std::string deviceTime()
 {
-    char buffer[size];
+    uint32_t epoch = app::Clock::getInstance().now();
+    if (epoch == 0)
+        return "not synced";
 
-    va_list args;
-    va_start(args, fmt);
-    vsnprintf(buffer, sizeof(buffer), fmt, args);
-    va_end(args);
-
-    return std::string(buffer);
-}
-
-// Value from the web form in the stored units, rounded rather than truncated
-inline uint32_t toUnits(double value, double scale)
-{
-    return static_cast<uint32_t>(std::lround(value * scale));
-}
-
-void saveParamsCallback () {
-
-    auto & config = config::getInstance();
-
-    {
-        std::string value = paramMeasurement.getValue();
-        std::string persistent = config.getOr<std::string>(MEASUREMENT, "");
-        if (value != persistent)
-        {
-            LOGI("measurement, set new value=%s, previous=%s", value.c_str(), persistent.c_str());
-            config.set<std::string>(MEASUREMENT, value);
-
-            defaultReporter.create(value.c_str());
-        }
-    }
-
-    {
-        auto value = toUnits(paramColdWaterTotal.getValue(), 1'000);
-        auto persistent = config.getOr<PersistCounter>(COLD_WATER, 0).get();
-        if (value != persistent)
-        {
-            LOGI("cold water, set new value=%u, previous=%u", value, persistent);
-            config.set<PersistCounter>(COLD_WATER, value);
-            waterColdCounter.setValue(value);
-        }
-    }
-
-    {
-        auto value = toUnits(paramHotWaterTotal.getValue(), 1'000);
-        auto persistent = config.getOr<PersistCounter>(HOT_WATER, 0).get();
-        if (value != persistent)
-        {
-            LOGI("hot water, set new value=%u, previous=%u", value, persistent);
-            config.set<PersistCounter>(HOT_WATER, value);
-            waterHotCounter.setValue(value);
-        }
-    }
-
-    {
-        auto value = toUnits(paramElectricityTotal.getValue(), 1'000);
-        auto persistent = config.getOr<PersistCounter>(ELECTRICITY, 0).get();
-        if (value != persistent)
-        {
-            LOGI("electricity, set new value=%u, previous=%u", value, persistent);
-            config.set<PersistCounter>(ELECTRICITY, value);
-            pzemPowerMeter.setValue(value);
-            pzemPowerMeter.discardPending();
-        }
-    }
-
-    {
-        auto value = static_cast<float>(paramPowerCorrection.getValue());
-        auto persistent = config.getOr<float>(ELECTRICITY_CORRECTION, 0.0);
-        if (value != persistent)
-        {
-            LOGI("electricity correction, set new value=%g, previous=%g", value, persistent);
-            config.set<float>(ELECTRICITY_CORRECTION, value);
-            pzemPowerMeter.correction(value);
-        }
-    }
-
-    config.write(configJournal);
+    time_t t = static_cast<time_t>(epoch);
+    char buffer[24] = {0};
+    strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", gmtime(&t));
+    return buffer;
 }
 
 void syncClock() {
@@ -256,74 +167,6 @@ void setup() {
     pzemPowerMeter.setValue(config.getOr<PersistCounter>(ELECTRICITY, 0));
     pzemPowerMeter.correction(config.getOr<float>(ELECTRICITY_CORRECTION, 1.0));
 
-    // Don't hang in the setup AP forever (e.g. router boots slower after a
-    // power outage): give up after a while and restart to retry the connection.
-    wm.setConfigPortalTimeout(180);
-
-    if (!wm.autoConnect(wifiApName.c_str()))
-    {
-        Serial.println("Wifi is not connected, restart");
-        delay(1000);
-        ESP.restart();
-    }
-
-    // Prapare configuration parameters
-
-    {
-        std::string value = config.getOr<std::string>(MEASUREMENT, "test");
-        paramMeasurement.setValue(
-            value.c_str(),
-            paramMeasurement.getValueLength());
-
-        defaultReporter.create(value.c_str());
-        defaultReporter.addHeader("device_id", mac);
-        defaultReporter.setTimeout(REPORT_TIMEOUT_MS);
-    }
-
-    {
-        double value = M3(config.getOr<PersistCounter>(COLD_WATER, 0));
-        paramColdWaterTotal.setValue(
-            format("%.3f", value).c_str(),
-            paramColdWaterTotal.getValueLength());
-    }
-
-    {
-        double value = M3(config.getOr<PersistCounter>(HOT_WATER, 0));
-        paramHotWaterTotal.setValue(
-            format("%.3f", value).c_str(),
-            paramHotWaterTotal.getValueLength());
-    }
-
-    {
-        double value = KWH(config.getOr<PersistCounter>(ELECTRICITY, 0));
-        paramElectricityTotal.setValue(
-            format("%.3f", value).c_str(),
-            paramElectricityTotal.getValueLength());
-    }
-
-    {
-        auto value = GCAL(config.getOr<PersistCounter>(HEAT_ENERGY, 0));
-        paramHeatEnergyTotal.setValue(
-            format("%.6f", value).c_str(),
-            paramHeatEnergyTotal.getValueLength());
-    }
-
-    paramPowerCorrection.setValue(
-        String(config.getOr<float>(ELECTRICITY_CORRECTION, 1.0)).c_str(),
-        paramPowerCorrection.getValueLength());
-
-    wm.addParameter(&paramMeasurement);
-    wm.addParameter(&paramColdWaterTotal);
-    wm.addParameter(&paramHotWaterTotal);
-    wm.addParameter(&paramElectricityTotal);
-    wm.addParameter(&paramHeatEnergyTotal);
-    wm.addParameter(&paramPowerCorrection);
-    wm.addParameter(&paramSeparator);
-    wm.addParameter(&paramCurrentTime);
-    wm.addParameter(&paramSeparator);
-    wm.addParameter(&paramVersion);
-    wm.setSaveParamsCallback(saveParamsCallback);
-
     static auto sensorOnTimerCallback = []()
     {
         auto &config = config::getInstance();
@@ -374,12 +217,7 @@ void setup() {
         pzemPowerMeter.onTimer();
         defaultReporter.commit();
 
-        uint32_t value = pzemPowerMeter.getValue();
-        paramElectricityTotal.setValue(
-            format("%.3f", KWH(value)).c_str(),
-            paramElectricityTotal.getValueLength());
-
-        config.set<PersistCounter>(ELECTRICITY, value);
+        config.set<PersistCounter>(ELECTRICITY, pzemPowerMeter.getValue());
         config.write(configJournal);
     };
 
@@ -403,28 +241,84 @@ void setup() {
             return;
         }
 
-        uint32_t value = pulsarHeatMeter.getValue();
-        paramHeatEnergyTotal.setValue(
-            format("%.6f", GCAL(value)).c_str(),
-            paramHeatEnergyTotal.getValueLength());
-
-        config.set<PersistCounter>(HEAT_ENERGY, value);
+        config.set<PersistCounter>(HEAT_ENERGY, pulsarHeatMeter.getValue());
         config.write(configJournal);
     };
 
-    wm.setWebServerCallback([&]() {
-        wm.server->on("/request", HTTP_GET, [&]() {
-            wm.server->send(200, "text/plain", "Measurements update have been requested.");
+    // Pages read the values from config, a saved form stores the changed
+    // ones, writes the journal and applies them to the sensors
+    web.name(wifiApName)
+        .version(APP_VERSION)
+        .ports(80, 8080)
+        .storage(configJournal);
 
-            pulsarOnTimerCallback();
-            pzemOnTimerCallback();
-            sensorOnTimerCallback();
+    web.counter(COLD_WATER, "cold_water_total", "Cold water", "m³", 1'000, 3)
+        .section("Meters")
+        .publish()
+        .editable([](const uint32_t &value) {
+            LOGI("cold water, set new value=%u", value);
+            waterColdCounter.setValue(value);
         });
+
+    web.counter(HOT_WATER, "hot_water_total", "Hot water", "m³", 1'000, 3)
+        .publish()
+        .editable([](const uint32_t &value) {
+            LOGI("hot water, set new value=%u", value);
+            waterHotCounter.setValue(value);
+        });
+
+    web.counter(ELECTRICITY, "electricity_total", "Electricity", "kWh", 1'000, 3)
+        .publish()
+        .editable([](const uint32_t &value) {
+            LOGI("electricity, set new value=%u", value);
+            pzemPowerMeter.setValue(value);
+            pzemPowerMeter.discardPending();
+        });
+
+    // Read from the meter, not editable
+    web.counter(HEAT_ENERGY, "heat_energy_total", "Heat energy", "Gcal", 1'000'000, 6).publish();
+
+    web.number(ELECTRICITY_CORRECTION, "power_correction", "Power correction", "Wh/kWh", 2)
+        .section("Settings")
+        .hide()
+        .editable([](const float &value) {
+            LOGI("electricity correction, set new value=%g", value);
+            pzemPowerMeter.correction(value);
+        });
+
+    web.text(MEASUREMENT, "measurement", "Measurement", 16)
+        .hide()
+        .editable([](const std::string &value) {
+            LOGI("measurement, set new value=%s", value.c_str());
+            defaultReporter.create(value.c_str());
+        });
+
+    web.item("Device time (UTC)", deviceTime, portal::Access::Public);
+
+    web.on("/request", [](ESP8266WebServer &server) {
+        server.send(200, "text/plain", "Measurements update have been requested.");
+
+        pulsarOnTimerCallback();
+        pzemOnTimerCallback();
+        sensorOnTimerCallback();
     });
 
-    std::vector<const char *> menu = {"wifi", "param", "info", "exit", "update"};
-    wm.setMenu(menu);
-    wm.startWebPortal();
+    // Don't hang in the setup AP forever (e.g. router boots slower after a
+    // power outage): give up after a while and restart to retry the connection.
+    web.setupTimeout(180);
+
+    if (!web.connect())
+    {
+        LOGW("WiFi is not connected, restart");
+        delay(1000);
+        ESP.restart();
+    }
+
+    defaultReporter.create(config.getOr<std::string>(MEASUREMENT, "test").c_str());
+    defaultReporter.addHeader("device_id", mac);
+    defaultReporter.setTimeout(REPORT_TIMEOUT_MS);
+
+    web.begin();
 
     delay(1000);
 
@@ -445,8 +339,7 @@ void setup() {
         syncClock();
     };
 
-    // WiFiManager builds a page in one String, so the largest free block
-    // matters as much as the free heap
+    // The largest free block matters as much as the free heap
     static auto heapCallback = []() {
         LOGI("heap: free=%u, max block=%u, fragmentation=%u%%",
              ESP.getFreeHeap(), ESP.getMaxFreeBlockSize(), ESP.getHeapFragmentation());
@@ -486,13 +379,8 @@ void loop() {
     {
         LOGD("process cold water counter");
 
-        uint32_t value = waterColdCounter.getValue();
-        paramColdWaterTotal.setValue(
-            format("%.3f", M3(value)).c_str(),
-            paramColdWaterTotal.getValueLength());
-
         auto &config = config::getInstance();
-        config.set<PersistCounter>(COLD_WATER, value);
+        config.set<PersistCounter>(COLD_WATER, waterColdCounter.getValue());
         config.write(configJournal);
     }
 
@@ -500,17 +388,12 @@ void loop() {
     {
         LOGD("process hot water counter");
 
-        uint32_t value = waterHotCounter.getValue();
-        paramHotWaterTotal.setValue(
-            format("%.3f", M3(value)).c_str(),
-            paramHotWaterTotal.getValueLength());
-
         auto &config = config::getInstance();
-        config.set<PersistCounter>(HOT_WATER, value);
+        config.set<PersistCounter>(HOT_WATER, waterHotCounter.getValue());
         config.write(configJournal);
     }
 
-    wm.process();
+    web.process();
     td.process();
 
     delay(TICK_MS);
