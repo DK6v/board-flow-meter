@@ -31,7 +31,8 @@ public:
 
     PinCounter& operator++();
 
-    void sendMetric();
+    // Returns false if a metric wasn't sent, the delta is kept for the next try
+    bool sendMetric();
 
     // Implement TimerListiner
     void onTimer();

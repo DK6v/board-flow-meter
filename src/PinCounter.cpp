@@ -69,7 +69,7 @@ void PinCounter::onTimer()
     sendMetric();
 }
 
-void PinCounter::sendMetric() {
+bool PinCounter::sendMetric() {
 
     mReporter.clear();
     mReporter.addTag("device_type", "water_meter");
@@ -77,7 +77,7 @@ void PinCounter::sendMetric() {
     mReporter.addTag("entity_type", "counter");
     mReporter.addTag("entity_unit", "L");
     mReporter.addField("value", mCounterTotal);
-    mReporter.send();
+    bool sent = mReporter.send() > 0;
 
     mReporter.clear();
     mReporter.addTag("device_type", "water_meter");
@@ -85,9 +85,15 @@ void PinCounter::sendMetric() {
     mReporter.addTag("entity_type", "delta");
     mReporter.addTag("entity_unit", "L");
     mReporter.addField("value", mBucket);
-    mReporter.send();
+    sent = (mReporter.send() > 0) && sent;
 
-    mBucket = 0;
+    // The delta is kept until it's sent, so a failed connection doesn't lose it
+    if (sent)
+    {
+        mBucket = 0;
+    }
+
+    return sent;
 }
 
 long PinCounter::getValue()

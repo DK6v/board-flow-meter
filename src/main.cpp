@@ -225,6 +225,9 @@ void setup() {
 
         config.set<PersistCounter>(ELECTRICITY, pzemPowerMeter.getValue());
         config.write(configJournal);
+
+        // The PZEM counter is reset only after the total is in the journal
+        pzemPowerMeter.commitEnergy();
     };
 
     static auto pulsarOnTimerCallback = []()

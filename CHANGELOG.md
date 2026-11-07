@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.3.0 — 2026-11-07
+
+### Fixed
+- A water delta was cleared even when the metric wasn't sent: after a failed
+  connection the litres counted since the last successful send were lost.
+  The delta is now kept until both water metrics are sent.
+- The PZEM energy counter was reset before the total was written to the
+  journal: a reboot in between lost that energy. The counter is now reset
+  after the journal write (`PinPzem::commitEnergy`).
+
 ## 2.2.0 — 2026-11-07
 
 ### Changed

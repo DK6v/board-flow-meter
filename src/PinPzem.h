@@ -28,6 +28,8 @@ public:
     uint32_t getValue();
     // Set the total, energy accumulated in the PZEM is still counted on the next read
     void setValue(uint32_t value);
+    // Reset the PZEM counter after the total is stored, call once per reading
+    void commitEnergy();
     // Drop the energy accumulated in the PZEM, it's included in a total entered by the user
     void discardPending();
 
@@ -44,6 +46,9 @@ private:
     // Energy (Wh) in the PZEM counter that is already added to the total,
     // non-zero only if resetting the counter failed
     double mEnergyCounted;
+
+    // Energy (Wh) read since the last commitEnergy(), not reset in the PZEM yet
+    double mEnergyPending;
 
     float mCorrection;
 };

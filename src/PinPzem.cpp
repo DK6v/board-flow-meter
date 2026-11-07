@@ -17,6 +17,7 @@ PinPzem::PinPzem(Reporter& reporter)
       mReporter(reporter),
       mEnergyTotal(0.0),
       mEnergyCounted(0.0),
+      mEnergyPending(0.0),
       mCorrection(0.0)
 {
     mSerial.begin(9600);
@@ -87,12 +88,9 @@ void PinPzem::sendMetric() {
         double energyWh = energy * 1000;
         double energyDelta = (energyWh >= mEnergyCounted) ? (energyWh - mEnergyCounted) : energyWh;
 
-        // If the reset fails, the next read must not count this energy again
-        mEnergyCounted = mPzem.resetEnergy() ? 0.0 : energyWh;
-        if (mEnergyCounted > 0.0)
-        {
-            LOGW("energy reset failed, counted=%.0f Wh", mEnergyCounted);
-        }
+        // The counter is reset by commitEnergy() once the total is stored, so
+        // a reboot before that doesn't lose the energy in the PZEM
+        mEnergyPending = energyWh;
 
         // Correction: Wh added per counted kWh
         energyDelta += energyDelta / 1000 * mCorrection;
@@ -125,6 +123,23 @@ uint32_t PinPzem::getValue()
 void PinPzem::setValue(uint32_t value)
 {
     mEnergyTotal = value;
+}
+
+void PinPzem::commitEnergy()
+{
+    if (mEnergyPending <= 0.0)
+    {
+        return;
+    }
+
+    // If the reset fails, the next read must not count this energy again
+    mEnergyCounted = mPzem.resetEnergy() ? 0.0 : mEnergyPending;
+    if (mEnergyCounted > 0.0)
+    {
+        LOGW("energy reset failed, counted=%.0f Wh", mEnergyCounted);
+    }
+
+    mEnergyPending = 0.0;
 }
 
 void PinPzem::discardPending()
