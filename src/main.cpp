@@ -31,7 +31,9 @@
 #include "PinPulsar.h"
 #include "PinCounter.h"
 
-#include "network/Coap.h"
+#include <coap.h>
+
+#include "network/WifiTransport.h"
 #include "network/Clock.h"
 
 #define TICK_MS (10)
@@ -106,8 +108,12 @@ void syncClock() {
 
     LOGD("request timestamp from CoAP config server %s:%d", CONFIG_HOST, CONFIG_PORT);
 
-    app::Coap coap(CONFIG_HOST, CONFIG_PORT);
-    coap.sync(mac);
+    app::WifiTransport transport;
+    coap::Client coap(transport, CONFIG_HOST, CONFIG_PORT);
+
+    // The message ID is random so a late reply to an old request is not taken
+    uint16_t messageId = static_cast<uint16_t>(random(0, 0xFFFF));
+    coap.sync(mac, messageId);
 
     if (coap.data.timestamp.has_value())
     {

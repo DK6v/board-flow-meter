@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.2.0 — 2026-11-07
+
+### Changed
+- CoAP client moved to the `piolibs/coap` library 1.0.0. Its `Client` replaces
+  `app::Coap`, and the UDP socket is `app::WifiTransport`
+  (`src/network/WifiTransport.*`), which implements `coap::Transport`.
+  The `src/network/Coap.*` and `Cbor.*` files are removed. Incompatible for
+  anyone who reused these classes: `sync` takes a message ID and returns bool.
+- The CoAP message ID is random for each clock sync.
+- Firmware is smaller: about 1.5 KB less flash and 0.7 KB less RAM.
+
 ## 2.1.1 — 2026-11-07
 
 ### Fixed
