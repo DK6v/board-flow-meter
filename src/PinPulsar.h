@@ -28,8 +28,6 @@ public:
     PinPulsar(reporter::Reporter& reporter, PinOut& power);
     ~PinPulsar() = default;
 
-    operator Pulsar() { return mPulsar; }
-
     void onTimer();
     // Returns false if the meter didn't answer
     bool sendMetric();

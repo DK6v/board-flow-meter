@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 
+#include <IPAddress.h>
 #include <WiFiUdp.h>
 
 namespace app {
@@ -40,6 +41,9 @@ public:
 private:
     std::string server_;
     int port_;
+    IPAddress serverIp_;
+    uint16_t messageId_ = 0;
+    bool requestSent_ = false;
 
     WiFiUDP udp_;
 };

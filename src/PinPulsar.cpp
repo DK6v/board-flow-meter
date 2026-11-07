@@ -7,7 +7,11 @@
  * (at your option) any later version.
  */
 
+#undef LOG_MODULE
+#define LOG_MODULE "PINPULSAR"
+
 #include <Arduino.h>
+#include <console.h>
 #include <macros.h>
 
 #include "PinPulsar.h"
@@ -40,6 +44,15 @@ bool PinPulsar::sendMetric() {
     mSerial.begin(9600);
 
     bool updated = mPulsar.update();
+
+    // Casting NaN, a negative or a huge value is undefined and would be stored
+    double energy = static_cast<double>(mPulsar.mChHeatEnergy) * 1'000'000.0;
+    if (updated && !(std::isfinite(energy) && (energy >= 0.0) && (energy < 4294967295.0)))
+    {
+        LOGW("invalid heat energy=%g, skip", mPulsar.mChHeatEnergy);
+        updated = false;
+    }
+
     if (updated) {
 
         mReporter.clear();
@@ -98,7 +111,7 @@ bool PinPulsar::sendMetric() {
         mReporter.addField("value", ROUNDF(mPulsar.mChWaterFlow, 3));
         mReporter.send();
 
-        mHeatEnergyTotal = static_cast<uint32_t>(mPulsar.mChHeatEnergy * 1'000'000.0);
+        mHeatEnergyTotal = static_cast<uint32_t>(energy);
     }
 
     mPower.off();

@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.1.1 — 2026-11-07
+
+### Fixed
+- CoAP time request read 12 bytes from a 7-byte literal; the response is
+  accepted only with the request's message ID and an empty token, options
+  with extended lengths are skipped, and timestamps before 2024 are ignored.
+- CBOR maps with 16–23 entries were parsed with a wrong size, negative
+  1-byte integers came out positive, and parsing was not bounded.
+- Heat energy is stored only if it's a finite, non-negative value that fits
+  `uint32_t`; a bad reading is not sent to Influx.
+- Pulsar channel values are initialized, so the first reading doesn't
+  return garbage.
+
 ## 1.1.13 — 2026-10-25
 
 ### Changed

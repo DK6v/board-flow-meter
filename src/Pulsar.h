@@ -100,16 +100,18 @@ private:
     uint16_t mUserData;
 
     uint32_t mLastUpdate;
+    // mLastUpdate is 0 until the first reading, millis() may be 0 too
+    bool mHasData = false;
 
 public:
     /* Channel readings */
-    float mChTempIn;
-    float mChTempOut;
-    float mChTempDelta;
-    float mChHeatPower;
-    float mChHeatEnergy;
-    float mChWaterCapacity;
-    float mChWaterFlow;
+    float mChTempIn = 0.0f;
+    float mChTempOut = 0.0f;
+    float mChTempDelta = 0.0f;
+    float mChHeatPower = 0.0f;
+    float mChHeatEnergy = 0.0f;
+    float mChWaterCapacity = 0.0f;
+    float mChWaterFlow = 0.0f;
 };
 
 } // namespace app

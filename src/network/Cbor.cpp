@@ -33,21 +33,20 @@ std::optional<uint32_t> Cbor::parseNumber()
 
     uint8_t type = data_[pos_++];
 
+    if (type <= 0x17)  // small unsigned integer, the value is in the type byte
+    {
+        return type;
+    }
+
     switch (type)
     {
-        case 0x00:  // 1-byte simple
-        case 0x01:  // 1-byte simple
-        {
-            return type;
-        }
-
         case 0x18:  // 1-byte unsigned
-        case 0x38:  // 1-byte signed
+        case 0x38:  // 1-byte negative
         {
             SIZE_GE(1);
             uint32_t value = data_[pos_];
             pos_ += 1;
-            return value;
+            return (type == 0x18) ? value : ((-1) - value);
         }
 
         case 0x19:  // 2-byte integer
@@ -64,8 +63,10 @@ std::optional<uint32_t> Cbor::parseNumber()
         case 0x3A:  // 4-byte signed negative
         {
             SIZE_GE(4);
-            uint32_t value = (data_[pos_] << 24) | (data_[pos_ + 1] << 16) |
-                             (data_[pos_ + 2] << 8) | data_[pos_ + 3];
+            uint32_t value = (static_cast<uint32_t>(data_[pos_]) << 24) |
+                             (static_cast<uint32_t>(data_[pos_ + 1]) << 16) |
+                             (static_cast<uint32_t>(data_[pos_ + 2]) << 8) |
+                             data_[pos_ + 3];
             pos_ += 4;
 
             return (type == 0x1A) ? value : ((-1) - value);
@@ -83,7 +84,7 @@ std::optional<size_t> Cbor::parseMap()
     SIZE_GE(1);
 
     uint8_t major = data_[pos_] >> 5;
-    uint8_t minor = data_[pos_] & 0x0F;
+    uint8_t minor = data_[pos_] & 0x1F;
 
     if ((major == 5) && (minor < 24))  // the map
     {
@@ -101,20 +102,17 @@ bool Cbor::isEmpty() const
 
 bool Cbor::isType(Cbor::Type type) const
 {
-    Cbor::Type value = static_cast<Type>(data_[pos_]);
-
-    if ((type == Type::MAP) && (value & 0xE0) == Type::MAP)
+    if (isEmpty())
     {
-        return true;
+        return false;
     }
 
-    if ((type == Type::UINT8 ||
-         type == Type::UINT16 ||
-         type == Type::UINT32) &&
-        (type == value))
+    uint8_t value = data_[pos_];
+
+    if (type == Type::MAP)
     {
-        return type;
+        return (value & 0xE0) == Type::MAP;
     }
 
-    return Type::UNKNOWN;
+    return (type != Type::UNKNOWN) && (value == type);
 }

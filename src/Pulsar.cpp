@@ -43,7 +43,7 @@ bool Pulsar::update()
 {
     unsigned long startTime = millis();
 
-    if (startTime - mLastUpdate < updateInterval)
+    if (mHasData && (startTime - mLastUpdate < updateInterval))
     {
         LOGI("data is up to date %u ms", updateInterval - (startTime - mLastUpdate));
         return true;
@@ -62,6 +62,7 @@ bool Pulsar::update()
                 app::Pulsar::CH_WATER_FLOW}))
         {
             mLastUpdate = millis();
+            mHasData = true;
 
             LOGI("read attempt %u succeeded, %lu ms after the first request",
                  attempt, mLastUpdate - startTime);

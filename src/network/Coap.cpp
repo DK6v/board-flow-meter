@@ -14,6 +14,9 @@
 using namespace std;
 using namespace app;
 
+// 2024-01-01 00:00:00 UTC
+static constexpr uint32_t MIN_EPOCH = 1704067200;
+
 Coap::Coap(std::string server = "localhost", int port = 5683) : server_(server), port_(port)
 {
     udp_.begin(port_);
@@ -42,6 +45,19 @@ std::optional<size_t> Coap::parseHeader(const std::vector<uint8_t>& packet,
          result.response_code,
          result.message_id);
 
+    // The request is sent without a token and the response must repeat its message ID
+    if (token_length != 0)
+    {
+        LOGD("Unexpected token length: %d", token_length);
+        return std::nullopt;
+    }
+
+    if (result.message_id != messageId_)
+    {
+        LOGD("Unexpected message ID: %d, expected %d", result.message_id, messageId_);
+        return std::nullopt;
+    }
+
     // Code 2.xx is required
     if ((result.response_code & 0xE0) != 0x40)
     {
@@ -52,11 +68,46 @@ std::optional<size_t> Coap::parseHeader(const std::vector<uint8_t>& packet,
     // Skip token
     size_t pos = 4 + token_length;
 
-    // Skip options
+    // Skip options, the delta and the length may be extended (13, 14)
     while (pos < packet.size() && packet[pos] != 0xFF)
     {
         uint8_t option_byte = packet[pos++];
-        uint8_t option_length = option_byte & 0x0F;
+        uint8_t delta = option_byte >> 4;
+        uint16_t option_length = option_byte & 0x0F;
+
+        if (delta == 15 || option_length == 15)
+        {
+            LOGD("Invalid option header: 0x%02x", option_byte);
+            return std::nullopt;
+        }
+
+        if (delta == 13)
+        {
+            pos += 1;
+        }
+        else if (delta == 14)
+        {
+            pos += 2;
+        }
+
+        if (option_length == 13)
+        {
+            if (pos >= packet.size())
+            {
+                return std::nullopt;
+            }
+            option_length = packet[pos++] + 13;
+        }
+        else if (option_length == 14)
+        {
+            if (pos + 1 >= packet.size())
+            {
+                return std::nullopt;
+            }
+            option_length = ((packet[pos] << 8) | packet[pos + 1]) + 269;
+            pos += 2;
+        }
+
         pos += option_length;
     }
 
@@ -160,6 +211,11 @@ std::optional<Coap::CoAPResult> Coap::parsePacket(const std::vector<uint8_t>& pa
 
     LOGD("Packet payload is %s", (isPayloadValid) ? "valid" : "invalid");
 
+    if (!isPayloadValid)
+    {
+        return std::nullopt;
+    }
+
     return std::optional<CoAPResult>(std::move(result));
 }
 
@@ -176,6 +232,8 @@ void Coap::request(std::string resource, uint16_t clientId)
         clientId = random(0, 0xFFFF);
     }
 
+    messageId_ = clientId;
+
     // Header
     coapPacket[packetSize++] = 0x40;                       // Ver=1, Type=CON, TKL=0
     coapPacket[packetSize++] = 0x01;                       // GET
@@ -184,15 +242,29 @@ void Coap::request(std::string resource, uint16_t clientId)
 
     // First Uri-Path option
     coapPacket[packetSize++] = 0xB6;  // Delta=11, Length=6
-    memcpy(&coapPacket[packetSize], "device", resource.length());
+    memcpy(&coapPacket[packetSize], "device", 6);
     packetSize += 6;
+
+    // Longer options need the extended length, the resource is a MAC address
+    if (resource.length() > 12)
+    {
+        LOGE("Resource is too long: %u", resource.length());
+        return;
+    }
 
     // Second Uri-Path option (continuing same option number)
     coapPacket[packetSize++] = resource.length();  // Delta=0, Length=<length>
     memcpy(&coapPacket[packetSize], resource.c_str(), resource.length());
     packetSize += resource.length();
 
-    if (udp_.beginPacket(server_.c_str(), port_))
+    // The response is accepted only from the address the request is sent to
+    if (!WiFi.hostByName(server_.c_str(), serverIp_, 2000))
+    {
+        LOGD("Resolving %s failed", server_.c_str());
+        return;
+    }
+
+    if (udp_.beginPacket(serverIp_, port_))
     {
         udp_.write(coapPacket, packetSize);
         udp_.endPacket();
@@ -200,7 +272,9 @@ void Coap::request(std::string resource, uint16_t clientId)
     else
     {
         LOGD("Begin packet failed");
+        return;
     }
+    requestSent_ = true;
 
     LOGD("CoAP request sent (ix: %d, %d bytes)", ++ix, packetSize);
 }
@@ -209,12 +283,26 @@ void Coap::listen()
 {
     int packetSize = 0;
 
+    if (!requestSent_)
+    {
+        LOGD("Listen: no request sent");
+        udp_.stop();
+        return;
+    }
+
     for (uint8_t attempts = 100; attempts--; delay(10))
     {
         packetSize = udp_.parsePacket();
         if (packetSize > 0)
         {
-            break;
+            if ((udp_.remoteIP() == serverIp_) && (udp_.remotePort() == port_))
+            {
+                break;
+            }
+
+            LOGD("Skip packet from %s:%d", udp_.remoteIP().toString().c_str(), udp_.remotePort());
+            udp_.flush();
+            packetSize = 0;
         }
     }
 
@@ -227,6 +315,13 @@ void Coap::listen()
         udp_.read(packet.data(), packet.size());
 
         data = parsePacket(packet).value_or(CoAPResult());
+
+        // A time before 2024 means a corrupted or fake payload
+        if (data.timestamp.has_value() && (*data.timestamp < MIN_EPOCH))
+        {
+            LOGW("Timestamp %u is out of range, ignored", *data.timestamp);
+            data.timestamp.reset();
+        }
     }
     else
     {
